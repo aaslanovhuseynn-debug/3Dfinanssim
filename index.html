@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Жизнь и деньги 3D</title>
+<style>
+:root{--bg:#dff3ff;--fg:#17324a;--card:#fffffff2;--ac:#ffb400;--ac2:#1f9d6b;--mut:#5b7285;--bd:#bcd6e6}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1c2b;--fg:#eaf3fb;--card:#17283bf4;--mut:#93a9bb;--bd:#2c4560}}
+:root[data-theme="dark"]{--bg:#0f1c2b;--fg:#eaf3fb;--card:#17283bf4;--mut:#93a9bb;--bd:#2c4560}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--fg);font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+#hud{position:fixed;left:0;right:0;top:0;padding:calc(env(safe-area-inset-top,0px) + 8px) 10px 0;display:none;pointer-events:none}
+.row{display:flex;justify-content:space-between;gap:6px;margin-bottom:6px}
+.pill{background:var(--card);border:2px solid var(--bd);border-radius:18px;padding:4px 11px;font-weight:800;font-size:14px}
+#rs{pointer-events:auto}
+#joy{position:fixed;left:18px;bottom:calc(env(safe-area-inset-bottom,0px) + 24px);width:130px;height:130px;border-radius:50%;background:var(--card);border:3px solid var(--bd);display:none;touch-action:none}
+#knob{position:absolute;left:36px;top:36px;width:52px;height:52px;border-radius:50%;background:var(--ac);pointer-events:none}
+#act{position:fixed;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 40px);min-width:130px;max-width:48vw;min-height:70px;border-radius:35px;border:3px solid var(--bd);background:var(--ac);color:#2a1d00;font-size:16px;font-weight:800;display:none;padding:0 14px}
+.pop{position:fixed;left:50%;top:40%;transform:translateX(-50%);font-weight:900;font-size:22px;background:var(--card);border:3px solid var(--bd);border-radius:18px;padding:8px 16px;animation:fl 1.9s ease-out forwards;pointer-events:none;max-width:90%;text-align:center}
+@keyframes fl{to{top:24%;opacity:0}}
+#ov{position:fixed;inset:0;display:none;align-items:flex-end;justify-content:center;padding:12px 12px calc(env(safe-area-inset-bottom,0px) + 12px);pointer-events:none}
+.card{width:100%;max-width:460px;max-height:46vh;overflow-y:auto;background:var(--card);border:3px solid var(--bd);border-radius:22px;padding:14px;touch-action:pan-y;pointer-events:auto}
+#ov.mid{align-items:center}#ov.mid .card{max-height:80vh}
+h1{margin:0 0 4px;font-size:26px}h2{margin:0 0 6px;font-size:21px}
+p{margin:5px 0;color:var(--mut);line-height:1.35}
+.big{display:block;width:100%;min-height:52px;margin-top:8px;border-radius:15px;border:0;background:var(--ac);color:#2a1d00;font-size:16px;font-weight:800;padding:6px 10px}
+.big small{display:block;font-weight:600;opacity:.8;font-size:12px}
+.big.alt{background:transparent;border:3px solid var(--bd);color:var(--fg)}
+.big:disabled{opacity:.45}
+.tabs{display:flex;gap:6px;margin:6px 0}.tabs button{flex:1;min-height:40px;border-radius:12px;border:2px solid var(--bd);background:transparent;color:var(--fg);font-weight:800;font-size:13px}
+.tabs button.on{background:var(--ac);color:#2a1d00;border-color:var(--ac)}
+.it{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--bd)}
+.it b{flex:1;font-size:14px}.it .sw{width:24px;height:24px;border-radius:8px;border:2px solid var(--bd)}
+.it button{min-height:40px;min-width:88px;border-radius:12px;border:0;background:var(--ac2);color:#fff;font-weight:800}
+.it button:disabled{background:var(--bd);color:var(--mut)}
+.r2{display:flex;justify-content:space-between;padding:3px 0;font-weight:700}
+</style></head><body>
+<canvas id="c"></canvas>
+<div id="hud"><div class="row"><span class="pill" id="age"></span><span class="pill" id="coins"></span></div><div class="row"><span class="pill" id="en"></span><span class="pill" id="tr"></span><span class="pill" id="rs" onclick="resetAll()">↺</span></div></div>
+<div id="joy"><div id="knob"></div></div><button id="act"></button>
+<div id="ov"><div class="card" id="card"></div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const $=id=>document.getElementById(id),rnd=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
+const DEF=()=>({age:0,bank:0,en:6,trust:60,edu:0,prep:0,prof:'',cr:0,lec:0,dip:'',job:'',exp:{taxi:0,office:0,pilot:0},seen:0,own:['hat0','top0','bot0','shoe0'],eq:{hat:'hat0',top:'top0',bot:'bot0',shoe:'shoe0'}});
+let S=DEF();try{const s=JSON.parse(localStorage.getItem('lifesim3d'));if(s&&s.eq)S=Object.assign(DEF(),s)}catch(e){}
+const save=()=>{try{localStorage.setItem('lifesim3d',JSON.stringify(S))}catch(e){}};
+if(S.job&&S.dip!==S.job)S.job='';
+const ITEMS=[
+{id:'hat0',c:'hat',n:'Без шапки',p:0},{id:'hat1',c:'hat',n:'Кепка',p:40,k:'cap',col:0xe74c3c},{id:'hat2',c:'hat',n:'Цилиндр',p:150,k:'top',col:0x222222},{id:'hat3',c:'hat',n:'Корона',p:500,k:'crown',col:0xffd700},
+{id:'top0',c:'top',n:'Белая футболка',p:0,col:0xeeeeee},{id:'top1',c:'top',n:'Синяя толстовка',p:30,col:0x3498db},{id:'top2',c:'top',n:'Зелёная куртка',p:80,col:0x27ae60},{id:'top3',c:'top',n:'Костюм',p:250,col:0x2c3e50},
+{id:'bot0',c:'bot',n:'Серые шорты',p:0,col:0x95a5a6},{id:'bot1',c:'bot',n:'Джинсы',p:35,col:0x34495e},{id:'bot2',c:'bot',n:'Красные брюки',p:90,col:0xc0392b},
+{id:'shoe0',c:'shoe',n:'Белые кеды',p:0,col:0xffffff},{id:'shoe1',c:'shoe',n:'Чёрные ботинки',p:60,col:0x111111},{id:'shoe2',c:'shoe',n:'Золотые кроссовки',p:300,col:0xf1c40f}];
+const CATS={hat:'Шапки',top:'Верх',bot:'Низ',shoe:'Обувь'},gI=id=>ITEMS.find(i=>i.id===id);
+const EVT=['Ты родился. Мама и папа счастливы.','Первые шаги по гостиной.','Первые слова: «мама» и «дай».','Ты играешь во дворе и ничего не знаешь о деньгах.','Садик, игрушки и мультики. Скоро школа.','Ты увидел, как мама платит в магазине, и узнал про деньги!','Первый класс: теперь есть уроки.','Карманных денег хочется больше.','Одноклассники хвастаются покупками.','Ты понял: деньги не берутся из воздуха.','Родители всё чаще говорят «мы не можем себе позволить».','Ты замечаешь, кто и как зарабатывает.','Подростковый возраст: новые хотелки.','Учёба становится сложнее.','Пора думать о будущем.','Друзья выбирают профессии.','Скоро выпускной.','Последний школьный год.','Тебе 18! Теперь можно работать и поступать в университет. Родители больше не платят за всё: аренда и еда — 120 🪙 в год.','Взрослая жизнь набирает обороты.'];
+const PN={taxi:'Таксист',office:'Офисный работник',pilot:'Пилот'},JB={taxi:55,office:70,pilot:160},pay=k=>Math.round(JB[k]*(1+.15*S.exp[k]));
+const QB=[['12×5=?',['50','60','72'],1],['Что такое бюджет?',['План доходов и расходов','Вид налога','Банковская карта'],0],['Сколько будет 15% от 200?',['20','30','45'],1],['Что такое процент по вкладу?',['Доход, который банк платит тебе','Штраф банку','Налог'],0],['Столица Франции?',['Берлин','Париж','Рим'],1],['Что разумнее делать с доходом?',['Откладывать часть','Тратить всё сразу','Брать кредит на игрушки'],0],['Корень из 81?',['8','9','7'],1],['Налог — это…',['Подарок','Обязательный платёж государству','Скидка'],1],['Инфляция — это…',['Рост цен со временем','Падение цен','Рост зарплаты'],0],['Сколько градусов в прямом угле?',['90','180','60'],0],['Кредит нужно…',['Не возвращать','Вернуть с процентами','Вернуть через 100 лет'],1],['144÷12=?',['11','12','14'],1],['Что такое доход?',['Деньги, которые ты получаешь','Деньги, которые ты тратишь','Долг'],0]].map(([q,a,c])=>({q,a,c}));
+const PQ={pilot:[['Что показывает альтиметр?',['Высоту','Скорость','Топливо'],0],['Что делают перед взлётом?',['Предполётную проверку','Обедают','Спят'],0]],taxi:[['Кто имеет приоритет на пешеходном переходе?',['Пешеход','Такси','Никто'],0],['Что делать в час пик?',['Выбрать объезд','Ехать напрямик','Остановиться'],0]],office:[['Что такое дедлайн?',['Крайний срок','Перерыв','Премия'],0],['Что такое отчёт?',['Документ с итогами работы','Вид налога','Перерыв'],0]]};
+for(const k in PQ)PQ[k]=PQ[k].map(([q,a,c])=>({q,a,c}));
+
+// ---- scene ----
+const R=new THREE.WebGLRenderer({canvas:$('c'),antialias:true});R.setPixelRatio(Math.min(devicePixelRatio,2));
+const sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(55,1,.1,200);
+sc.background=new THREE.Color(0x9fd4ff);sc.fog=new THREE.Fog(0x9fd4ff,70,160);
+sc.add(new THREE.HemisphereLight(0xffffff,0x88aa88,1));const dl=new THREE.DirectionalLight(0xffffff,.6);dl.position.set(10,20,8);sc.add(dl);
+const M=(g,c)=>new THREE.Mesh(g,new THREE.MeshLambertMaterial({color:c})),B=(w,h,d,c,x,y,z,p=sc)=>{const m=M(new THREE.BoxGeometry(w,h,d),c);m.position.set(x,y,z);p.add(m);return m};
+B(140,.2,140,0x6fbf5f,0,-.1,0);B(140,.1,6,0x4b5563,0,.0,10);B(5,.1,50,0xcbbf9a,0,.02,-12);
+function label(txt,x,y,z){const c=document.createElement('canvas');c.width=320;c.height=80;const g=c.getContext('2d');g.fillStyle='#fffffff0';g.fillRect(0,0,320,80);g.fillStyle='#17324a';g.font='bold 40px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(txt,160,42);
+const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),fog:false}));s.scale.set(7,1.75,1);s.position.set(x,y,z);sc.add(s)}
+const Z=[{id:'home',n:'Дом',x:0,z:-1,c:0xffb88a},{id:'school',n:'Школа',x:-22,z:-16,c:0xf2d16b},{id:'uni',n:'Университет',x:22,z:-16,c:0x9a7bd6},{id:'taxi',n:'Таксопарк',x:-22,z:22,c:0xffd23f},{id:'office',n:'Офис',x:0,z:-32,c:0x6fa8dc},{id:'air',n:'Аэропорт',x:24,z:22,c:0xcfd8dc},{id:'npc',n:'Сосед',x:13,z:4}];
+for(const z of Z){if(z.id==='npc')continue;B(9,6,7,z.c,z.x,3,z.z);const r=M(new THREE.ConeGeometry(7,3,4),0x8c4a3a);r.position.set(z.x,7.5,z.z);r.rotation.y=Math.PI/4;sc.add(r);B(1.6,2.6,.2,0x5a3b22,z.x,1.3,z.z+3.6);B(1.4,1.2,.2,0xbfe9ff,z.x-2.5,3.2,z.z+3.6);B(1.4,1.2,.2,0xbfe9ff,z.x+2.5,3.2,z.z+3.6);label(z.n,z.x,10.5,z.z)}
+for(let i=0;i<34;i++){const x=rnd(-60,60),zz=rnd(-50,50);if(Z.some(q=>Math.hypot(q.x-x,q.z-zz)<11)||Math.abs(zz-10)<5||Math.abs(x)<4&&zz<10)continue;B(.7,2,.7,0x7a4f2b,x,1,zz);const k=M(new THREE.ConeGeometry(2,4,8),0x2e8b57);k.position.set(x,4,zz);sc.add(k)}
+// interiors
+const INB={school:300,uni:360,taxi:420,office:480,air:540},INZ=[],FC={school:0xf5e6b8,uni:0xd9cff0,taxi:0xfff2b3,office:0xdce9f7,air:0xe8eef2},
+INS={school:[['desk','Парта',-5,-2],['board','Доска',3,-6]],uni:[['dean','Деканат',-5,-5],['lect','Аудитория',5,-5],['exam','Экзамен',0,0]],taxi:[['hr','Диспетчерская',-5,-5],['work','Такси',5,-5]],office:[['hr','Отдел кадров',-5,-5],['work','Рабочий стол',5,-5]],air:[['hr','Авиакасса',-5,-5],['work','Кабина самолёта',5,-5]]};
+for(const id in INB){const bx=INB[id];B(20,.2,18,FC[id],bx,-.1,0);B(20,6,.4,0xf7f7f7,bx,3,-9);B(.4,6,18,0xeeeeee,bx-10,3,0);B(.4,6,18,0xeeeeee,bx+10,3,0);B(3.4,.05,1.8,0x2d6a4f,bx,.03,7.8);label('Выход',bx,2,8.2);
+for(const[k,n,x,z]of INS[id]){B(2.8,1,1.4,0x8d6e63,bx+x,.5,z);
+if(k==='work'&&id==='taxi'){B(3.6,.9,1.8,0xffd23f,bx+x,1.3,z-1.8);B(1.8,.8,1.6,0xbfe9ff,bx+x,2.1,z-1.8)}
+else if(k==='work'&&id==='air'){B(1.4,1.4,3,0xffffff,bx+x,1.5,z-2);B(6,.2,1.2,0xdde3ea,bx+x,1.5,z-2)}
+else if(id==='school'&&k==='board')B(5,2.5,.2,0x2f4f3f,bx+x,2.6,-8.6);
+else B(1,.7,.1,0x222222,bx+x,1.4,z-.4);
+label(n,bx+x,3.6,z);INZ.push({id,k,n,x:bx+x,z,st:1})}
+INZ.push({id,k:'exit',n:'Выход',x:bx,z:7.8,st:1})}
+// figures
+function fig(tc,bc,s=1){const g=new THREE.Group(),o={g,armM:[],legM:[],shoes:[]};
+o.top=B(.7,.7,.4,tc,0,1.15,0,g);
+const piv=(x,y)=>{const p=new THREE.Group();p.position.set(x,y,0);g.add(p);return p};
+o.lL=piv(-.17,.55);o.lR=piv(.17,.55);o.aL=piv(-.46,1.45);o.aR=piv(.46,1.45);
+for(const p of[o.lL,o.lR]){o.legM.push(B(.26,.5,.3,bc,0,-.25,0,p));o.shoes.push(B(.28,.14,.44,0xffffff,0,-.52,-.05,p))}
+for(const p of[o.aL,o.aR])o.armM.push(B(.18,.55,.2,tc,0,-.26,0,p));
+B(.6,.6,.6,0xffd3a8,0,1.75,0,g).geometry=new THREE.SphereGeometry(.3,14,10);
+for(const x of[-.1,.1])B(.07,.07,.05,0x111111,x,1.78,-.28,g);
+o.hat=new THREE.Group();o.hat.position.y=2;g.add(o.hat);g.scale.setScalar(s);sc.add(g);return o}
+function anim(o,t,m){const s=Math.sin(t*11);
+if(m==='walk'){o.lL.rotation.x=s*.8;o.lR.rotation.x=-s*.8;o.aL.rotation.x=-s*.7;o.aR.rotation.x=s*.7;o.g.children[0].position.y=1.15+Math.abs(s)*.05}
+else if(m==='work'){o.aL.rotation.x=-2.2+Math.sin(t*16)*.5;o.aR.rotation.x=-2.2-Math.sin(t*16)*.5;o.lL.rotation.x=o.lR.rotation.x=0;o.g.position.y=Math.abs(Math.sin(t*8))*.3}
+else{o.lL.rotation.x=o.lR.rotation.x=0;o.aL.rotation.x=Math.sin(t*2)*.08;o.aR.rotation.x=-Math.sin(t*2)*.08;o.g.children[0].position.y=1.15+Math.sin(t*2)*.015}
+if(m!=='work')o.g.position.y=0}
+const pl=fig(0xeeeeee,0x888888),mom=fig(0xe0679a,0x5b4a8a,1),dad=fig(0x3b7dd8,0x333a4a,1.1),kid=fig(0xff8a3d,0x2f7d5b,.55);
+mom.g.position.set(-3,0,5.5);dad.g.position.set(3.2,0,5.5);kid.g.position.set(13,0,4);mom.g.rotation.y=dad.g.rotation.y=Math.PI;kid.g.rotation.y=Math.PI/2*3;
+pl.g.position.set(0,0,8);
+function dress(){const g=id=>gI(S.eq[id]);pl.top.material.color.set(g('top').col);pl.armM.forEach(m=>m.material.color.set(g('top').col));pl.legM.forEach(m=>m.material.color.set(g('bot').col));pl.shoes.forEach(m=>m.material.color.set(g('shoe').col));
+while(pl.hat.children.length)pl.hat.remove(pl.hat.children[0]);const h=g('hat');if(!h.k)return;const a=(ge,x,y,z)=>{const m=M(ge,h.col);m.position.set(x,y,z);pl.hat.add(m)};
+if(h.k==='cap'){a(new THREE.CylinderGeometry(.31,.33,.2,14),0,.02,0);a(new THREE.BoxGeometry(.4,.04,.3),0,-.06,-.3)}
+if(h.k==='top'){a(new THREE.CylinderGeometry(.24,.24,.5,14),0,.2,0);a(new THREE.CylinderGeometry(.42,.42,.05,14),0,-.05,0)}
+if(h.k==='crown')a(new THREE.CylinderGeometry(.4,.28,.32,5),0,.12,0)}
+const grow=()=>pl.g.scale.setScalar(.4+.6*Math.min(S.age,18)/18);
+// car & plane
+const car=new THREE.Group();B(4,1,2,0xe84040,0,.8,0,car);B(2,.9,1.8,0xbfe9ff,-.2,1.7,0,car);for(const x of[-1.3,1.3])for(const z of[-1,1]){const w=M(new THREE.CylinderGeometry(.45,.45,.3,10),0x111111);w.rotation.x=Math.PI/2;w.position.set(x,.45,z);car.add(w)}sc.add(car);
+const plane=new THREE.Group();B(1.3,1.3,9,0xffffff,0,0,0,plane);B(11,.25,1.8,0xdde3ea,0,0,.5,plane);B(3.5,.25,1.2,0xdde3ea,0,.2,-4,plane);B(.2,1.6,1.2,0xd64545,0,.9,-4,plane);sc.add(plane);
+
+// ---- ui/state ----
+let st='play',tm=0,jx=0,jz=0,near=null,off=0,cx=0,cz=0,facing=0,where=null;const keys={};
+const ov=(h,cls='')=>{$('card').innerHTML=h;const o=$('ov');o.className=cls;o.style.display='flex';$('card').scrollTop=0},closeOv=()=>{$('ov').style.display='none';st='play'};
+const pop=s=>{const d=document.createElement('div');d.className='pop';d.textContent=s;document.body.appendChild(d);setTimeout(()=>d.remove(),1900)};
+const btn=(l,s,f,dis)=>`<button class="big${dis?' alt':''}" ${dis?'disabled':''} onclick="${f}">${l}<small>${s}</small></button>`;
+function hud(){$('age').textContent='Год '+(S.age+1)+'/50 · '+S.age+' лет';$('coins').textContent='🪙 '+S.bank;$('en').textContent='⚡'.repeat(S.en)+'·'.repeat(6-S.en);
+$('tr').textContent=S.age<18?'Доверие '+S.trust+'%':(S.job?PN[S.job]:S.prof?PN[S.prof]+' '+S.cr+'/3':'Без профессии')}
+function resetAll(){if(confirm('Начать жизнь заново?')){S=DEF();save();dress();grow();where=null;pl.g.position.set(0,0,8);hud();flow()}}
+function flow(){if(S.age<5){st='story';ov(`<h2>Возраст: ${S.age}</h2><p>${EVT[S.age]}</p><button class="big" onclick="S.age++;S.en=6;save();hud();grow();flow()">${S.age<4?'Прожить год':'Подрасти'}</button>`,'mid');return}
+if(!S.seen){S.seen=1;save();st='story';ov(`<h2>Деньги!</h2><p>${EVT[5]}</p><p>У тебя 6 сил в год. Заходи в здания: школа (уроки и контрольные), с 18 лет университет (выбери профессию, 3 года учёбы), затем работа в аэропорту, таксопарке или офисе. До 18 можно просить деньги у родителей.</p><button class="big" onclick="closeOv()">Играть</button>`,'mid');return}
+closeOv()}
+function yearEnd(){st='story';let ex=0;const was=S.age;if(was>=18){ex=Math.min(S.bank,120+(was-18)*3);S.bank-=ex}
+S.age=Math.min(was+1,50);S.en=6;S.lec=0;if(S.age<18)S.trust=Math.min(100,S.trust+5);save();hud();grow();
+if(S.age>=50){ov(`<h2>Тебе 50!</h2><p>Игровая жизнь прожита. Копилка: ${S.bank} 🪙. Профессия: ${S.dip?PN[S.dip]:'нет'}.</p><button class="big" onclick="resetAll()">Начать заново</button><button class="big alt" onclick="S.age=49;save();hud();closeOv()">Ещё погулять</button>`,'mid');return}
+ov(`<h2>Тебе ${S.age}!</h2><p>${EVT[S.age]||'Ещё один год. Деньги и опыт работают на тебя.'}</p>${ex?`<div class="r2"><span>Аренда и еда</span><span>−${ex} 🪙</span></div>`:''}<div class="r2"><span>Копилка</span><span>${S.bank} 🪙</span></div><button class="big" onclick="closeOv()">Дальше</button>`,'mid')}
+function inter(z){if(z.st){if(z.k==='exit')return exitIn();return stMenu(z)}if(z.id==='home'||z.id==='npc')return openZone(z);enterIn(z)}
+function enterIn(z){where=z.id;pl.g.position.set(INB[z.id],0,4.5);facing=0;pl.g.rotation.y=0;pop('🚪 '+z.n)}
+function exitIn(){const z=Z.find(q=>q.id===where);where=null;pl.g.position.set(z.x,0,z.z+6.8);facing=Math.PI;pl.g.rotation.y=Math.PI}
+function openZone(z){st='menu';const a=S.age,e=S.en,h=[`<h2>${z.n}</h2>`];
+if(z.id==='home'){if(a<18)h.push(btn('Попросить у родителей','шанс зависит от доверия · 1 ⚡',"A('ask')",e<1),btn('Стащить из кошелька','+10…20 🪙, можно попасться · 1 ⚡',"A('steal')",e<1));h.push(btn('Гардероб','переодеться',"ward()"),btn('Лечь спать','закончить год',"closeOv();yearEnd()"))}
+else h.push(a<18?btn('Продать «волшебный камень»','обмануть ребёнка · +8…16 🪙, 30% что раскроют · 1 ⚡',"A('trick')",e<1):'<p>Сосед просто машет рукой.</p>');
+h.push('<button class="big alt" onclick="closeOv()">Назад</button>');ov(h.join(''))}
+function pick(p){S.prof=p;save();hud();closeOv();pop('Профессия: '+PN[p])}
+function stMenu(z){st='menu';const a=S.age,e=S.en,id=z.id,k=z.k,h=[`<h2>${z.n}</h2>`],wk={taxi:'taxi',office:'office',air:'pilot'}[id];
+if(id==='school'){if(a<6)h.push('<p>В школу — с 6 лет.</p>');
+else if(k==='desk')h.push(btn('Слушать урок','подсказок на контрольной: '+S.prep+' · 1 ⚡',"A('lesson')",e<1));
+else h.push('<p>Аттестат: знания '+Math.min(S.edu,6)+'/6'+(S.edu>=6?' ✅':'')+'</p>',btn('Контрольная','3 вопроса, нужно 2 верных · 1 ⚡',"quiz('school')",e<1||S.edu>=6))}
+else if(id==='uni'){const pf=S.prof;
+if(a<18)h.push('<p>В университет — с 18 лет.</p>');
+else if(S.edu<6)h.push('<p>Нужен аттестат: знания '+S.edu+'/6. Закончи школу (контрольные на доске).</p>');
+else if(k==='dean'){if(!pf)h.push('<p>Выбери профессию. Учёба 3 года: каждый год 2 лекции (30 🪙) и экзамен.</p>',...['pilot','taxi','office'].map(p=>btn(PN[p],'поступить',"pick('"+p+"')")));else h.push('<p>Профессия: '+PN[pf]+'<br>Курсов: '+S.cr+'/3'+(S.dip?' · диплом ✅':'')+'</p>')}
+else if(!pf)h.push('<p>Сначала выбери профессию в деканате.</p>');
+else if(S.dip)h.push('<p>Диплом уже получен ✅</p>');
+else if(k==='lect')h.push(btn('Лекция','30 🪙 · '+S.lec+'/2 в этом году · 1 ⚡',"A('lec')",e<1||S.bank<30||S.lec>=2));
+else h.push(btn('Экзамен курса '+(S.cr+1),S.lec>=2?'3 вопроса, нужно 2 верных · 1 ⚡':'сначала 2 лекции в этом году',"quiz('uni')",e<1||S.lec<2))}
+else if(a<18)h.push('<p>Работать можно с 18 лет.</p>');
+else if(k==='hr'){if(S.dip!==wk)h.push('<p>Нужен диплом по профессии «'+PN[wk]+'». Поступи в университет.</p>');else if(S.job===wk)h.push('<p>Ты здесь работаешь ✅ Опыт: '+S.exp[wk]+'</p>');else h.push(btn('Устроиться: '+PN[wk],'оклад '+JB[wk]+' 🪙 за смену',"S.job='"+wk+"';save();hud();closeOv();pop('Тебя приняли! 🎉')"))}
+else h.push(S.job===wk?btn('Выйти на смену','≈ '+pay(wk)+' 🪙 · опыт '+S.exp[wk]+' · 1 ⚡',"A('work')",e<1):'<p>Сначала устройся на работу.</p>');
+h.push('<button class="big alt" onclick="closeOv()">Назад</button>');ov(h.join(''))}
+let Q=null;const shf=a=>a.sort(()=>Math.random()-.5);
+function quiz(kind){if(S.en<1)return;let qs=shf([...QB]).slice(0,kind==='uni'?2:3);if(kind==='uni')qs.push(shf([...PQ[S.prof]])[0]);Q={kind,qs,i:0,ok:0,hint:Math.min(S.prep,2)};S.prep=0;qshow()}
+function qshow(){st='menu';const q=Q.qs[Q.i];let rem=Q.hint;const ids=shf([0,1,2]).filter(i=>{if(i!==q.c&&rem>0){rem--;return false}return true});
+ov(`<h2>${Q.kind==='uni'?'Экзамен':'Контрольная'} · вопрос ${Q.i+1}/3</h2><p style="color:var(--fg);font-weight:700">${q.q}</p>`+ids.map(i=>`<button class="big alt" onclick="qans(${i})">${q.a[i]}</button>`).join(''))}
+function qans(i){if(i===Q.qs[Q.i].c)Q.ok++;Q.i++;if(Q.i<3)return qshow();qend()}
+function qend(){const k=Q.kind,pass=Q.ok>=2;S.en--;let m;
+if(pass){if(k==='school'){S.edu=Math.min(6,S.edu+1);S.trust=Math.min(100,S.trust+3);m='Сдано! Знания: '+S.edu+'/6'}else{S.cr++;S.lec=0;if(S.cr>=3){S.dip=S.prof;m='🎓 Диплом: '+PN[S.prof]+'!'}else m='Курс '+S.cr+'/3 пройден!'}}else m='Не сдано. Попробуй ещё раз.';
+save();hud();ov(`<h2>${Q.ok}/3 — ${pass?'отлично':'не сдано'}</h2><p>${m}</p><button class="big" onclick="closeOv();if(S.en<=0)yearEnd()">Ок</button>`)}
+function A(n){if(S.en<1)return;const fn={
+ask:()=>{if(Math.random()<S.trust/100*.8+.1){const g=rnd(3,8);S.bank+=g;S.trust=Math.max(0,S.trust-4);return'Мама дала +'+g+' 🪙'}S.trust=Math.max(0,S.trust-2);return'«Сейчас нет, милый»'},
+steal:()=>{if(Math.random()<.45){const l=Math.min(S.bank,15);S.bank-=l;S.trust=Math.max(0,S.trust-20);return'Поймали! −'+l+' 🪙, доверие упало'}const g=rnd(10,20);S.bank+=g;S.trust=Math.max(0,S.trust-6);return'Тихо взял +'+g+' 🪙'},
+trick:()=>{if(Math.random()<.3){const l=Math.min(S.bank,10);S.bank-=l;S.trust=Math.max(0,S.trust-8);return'Обман раскрыт! −'+l+' 🪙'}const g=rnd(8,16);S.bank+=g;return'Камень продан +'+g+' 🪙'},
+lesson:()=>{S.prep=Math.min(2,S.prep+1);return'Подсказок на контрольной: '+S.prep},
+lec:()=>{S.bank-=30;S.lec++;return'Лекция прослушана '+S.lec+'/2'},
+work:()=>{const p=pay(S.job);S.bank+=p;S.exp[S.job]++;return'Смена: +'+p+' 🪙'}}[n];
+$('ov').style.display='none';st='act';setTimeout(()=>{const r=fn();S.en--;save();hud();pop(r);st='play';if(S.en<=0)setTimeout(yearEnd,900)},1200)}
+let wc='hat';
+function ward(c){c=c||wc;wc=c;st='ward';let tb='<div class="tabs">',ls='';for(const k in CATS)tb+=`<button class="${k===c?'on':''}" onclick="ward('${k}')">${CATS[k]}</button>`;tb+='</div>';
+for(const i of ITEMS.filter(x=>x.c===c)){const own=S.own.includes(i.id),eq=S.eq[c]===i.id,col=i.col!==undefined?'#'+i.col.toString(16).padStart(6,'0'):'transparent';
+ls+=`<div class="it"><span class="sw" style="background:${col}"></span><b>${i.n}</b>`+(eq?'<button disabled>Надето</button>':own?`<button onclick="eqp('${i.id}')">Надеть</button>`:`<button ${S.bank<i.p?'disabled':''} onclick="buy('${i.id}')">${i.p} 🪙</button>`)+'</div>'}
+ov(`<h2>Гардероб · 🪙 ${S.bank}</h2>${tb}${ls}<button class="big alt" onclick="closeOv()">Готово</button>`)}
+const buy=id=>{const i=gI(id);if(S.bank<i.p)return;S.bank-=i.p;S.own.push(id);S.eq[i.c]=id;save();dress();hud();ward(i.c)},eqp=id=>{const i=gI(id);S.eq[i.c]=id;save();dress();ward(i.c)};
+
+// ---- controls ----
+const jy=$('joy'),kn=$('knob');let jid=null;
+function jm(e){const r=jy.getBoundingClientRect();let dx=e.clientX-r.left-65,dy=e.clientY-r.top-65;const m=Math.hypot(dx,dy);if(m>45){dx*=45/m;dy*=45/m}jx=dx/45;jz=dy/45;kn.style.transform=`translate(${dx}px,${dy}px)`}
+jy.addEventListener('pointerdown',e=>{jid=e.pointerId;jy.setPointerCapture(jid);jm(e)});jy.addEventListener('pointermove',e=>{if(e.pointerId===jid)jm(e)});
+const je=e=>{if(e.pointerId===jid){jid=null;jx=jz=0;kn.style.transform=''}};jy.addEventListener('pointerup',je);jy.addEventListener('pointercancel',je);
+addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=1;if(e.key.toLowerCase()==='e'&&near&&st==='play')inter(near)});addEventListener('keyup',e=>keys[e.key.toLowerCase()]=0);
+$('act').addEventListener('pointerdown',e=>{e.preventDefault();if(near&&st==='play')inter(near)});
+function resize(){R.setSize(innerWidth,innerHeight,false);cam.aspect=innerWidth/innerHeight;cam.fov=innerWidth<innerHeight?70:55;cam.updateProjectionMatrix()}addEventListener('resize',resize);resize();
+
+let last=performance.now();
+function loop(n){requestAnimationFrame(loop);const dt=Math.min(.05,(n-last)/1000);last=n;tm+=dt;
+const p=pl.g.position;let mv=false;
+if(st==='play'&&S.age>=5){let vx=jx+(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0),vz=jz+(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0);const l=Math.hypot(vx,vz);
+if(l>.15){mv=true;const k=Math.min(1,l)*(5+S.age*.1)*dt/l;p.x+=vx*k;p.z+=vz*k;facing=Math.atan2(-vx,-vz)}}
+if(!where)for(const z of Z)if(z.id!=='npc'){const dx=p.x-z.x,dz=p.z-z.z,d=Math.hypot(dx,dz);if(d<5.4){p.x=z.x+dx/d*5.4;p.z=z.z+dz/d*5.4}}
+{const c=where?INB[where]:0,w=where?9:60,zn=where?-8:-55,zx=where?8.5:55;p.x=Math.max(c-w,Math.min(c+w,p.x));p.z=Math.max(zn,Math.min(zx,p.z))}
+let d=((facing-pl.g.rotation.y+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;pl.g.rotation.y+=d*Math.min(1,dt*12);
+anim(pl,tm,st==='act'?'work':mv?'walk':'idle');anim(mom,tm+1,'idle');anim(dad,tm+2,'idle');anim(kid,tm,'idle');
+car.position.set(((tm*9)%130)-65,0,11.5);const ang=tm*.25;plane.position.set(Math.cos(ang)*38,16,Math.sin(ang)*38);plane.rotation.set(0,Math.atan2(-Math.sin(ang),Math.cos(ang)),.25);
+near=null;if(st==='play'&&S.age>=5){let b=9;const L=where?INZ.filter(q=>q.id===where):Z;for(const z of L){const q=Math.hypot(p.x-z.x,p.z-z.z),r=z.st?(z.k==='exit'?2.6:3.2):z.id==='npc'?3.5:8;if(q<r&&q<b){b=q;near=z}}}
+const a=$('act');a.style.display=near?'block':'none';if(near)a.textContent=near.st?(near.k==='exit'?'🚪 Выйти':'🛠 '+near.n):near.id==='npc'?'💬 Поговорить':near.id==='home'?'🏠 Дом':'🚪 Войти: '+near.n;
+let tx,ty,tz,lx,ly,lz;
+if(st==='ward'){tx=p.x;ty=1.5;tz=p.z-3.4;lx=p.x;ly=.15;lz=p.z;pl.g.rotation.y=Math.sin(tm)*.6}
+else{off+=((st==='menu'||st==='story'?3.2:0)-off)*Math.min(1,dt*4);tx=p.x;ty=9.5;tz=p.z+9.5+off;lx=p.x;ly=0;lz=p.z+off}
+cx+=(tx-cx)*Math.min(1,dt*6);cz+=(tz-cz)*Math.min(1,dt*6);cam.position.set(cx,ty,cz);cam.lookAt(lx,ly,lz);
+R.render(sc,cam)}
+$('hud').style.display='block';jy.style.display='block';dress();grow();hud();flow();requestAnimationFrame(loop);
+</script></body></html>
