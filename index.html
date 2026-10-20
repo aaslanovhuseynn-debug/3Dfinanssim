@@ -2924,7 +2924,7 @@ const BXG=(()=>{const bx=INB.boxc,g={},c=new THREE.Group();B(44,.3,32,LM(0x2a2c3
 function boxSign(){const b=BXd();if(b.on)return;if(S.trust<30){st='menu';ov('<h2>🥊 Бокс</h2><p>Мама: «Сначала верни наше доверие — тогда поговорим о секции».</p><p>💡 Доверие растёт, если не таскать деньги из кошелька.</p><button class="big alt" onclick="closeOv()">Ладно</button>');return}
  b.on=1;b.compAt=rnd(10,15);b.y0=S.age;save();achCheck();st='menu';ov(`<h2>🥊 Тебя записали на бокс!</h2><p>Родители купили абонемент в <b>боксёрский клуб «Удар»</b> (юго-запад, ул. Луговая).</p><p>📅 Тренировки каждый день с <b>${TRW[0]}:00 до ${TRW[1]}:00</b>. Время смотри на часах <b>⌚</b> вверху экрана. 1 час в игре = 30 секунд.</p><p>💡 <b>Финансы:</b> абонемент стоит 30 🪙 в месяц — это <b>расход семьи на твоё развитие</b>. А призовые с соревнований — это уже <b>доход</b>!</p><button class="big" onclick="closeOv()">Ура!</button>`,'mid')}
 function boxMenu(z){const k=z.k,b=BXd(),h=[`<h2>${ST_IC[k]||''} ${z.n}</h2>`],t=clk(),lv=bxLvl();
- if(!b.on){h.push(`<p>Тренер: <i>«В секцию берём ребят 10–18 лет. Попроси родителей тебя записать»</i>.</p><p>🕐 Сейчас ${t}</p>`);return h}
+ if(!b.on){if(S.age>18){h.push(`<p>Тренер: <i>«Взрослых тоже берём! Абонемент — 40 🪙, тренировки каждый день ${TRW[0]}:00–${TRW[1]}:00»</i>.</p><p>🕐 Сейчас ${t}</p>`,btn('🥊 Купить абонемент','40 🪙 · бокс в любом возрасте',"boxAdult()",S.bank<40));return h}h.push(`<p>Тренер: <i>«Ребят 10–18 лет записывают родители — попроси дома маму. Взрослые покупают абонемент сами»</i>.</p><p>🕐 Сейчас ${t}</p>`);return h}
  h.push(bxBar(b.xp,b.xp),`<p style="font-size:13px">Тренировок: ${b.n} · Побед: ${b.wins} · Поражений: ${b.loss}${b.med.length?' · Медали: '+b.med.join(' '):''}<br>Сила рук: ${Math.round(b.arm)} · Уклоны: ${Math.round(b.dg)}</p>`);
  if(k==='coach'){const sg=bxStage(b.n);h.push(`<p>🕐 Сейчас <b>${t}</b>. Тренировки ${TRW[0]}:00–${TRW[1]}:00.</p><p>Сегодня по плану: <b>${STAGEN[sg]}</b></p>`);
   const ok=inWin(TRW)&&b.last!==DAYN;h.push(btn('🥊 Начать тренировку',b.last===DAYN?'сегодня ты уже тренировался — приходи завтра':!inWin(TRW)?'тренер ждёт тебя с '+TRW[0]+':00':'от первого лица · следи за усталостью',"closeOv();boxTrain()",!ok));
@@ -3363,7 +3363,7 @@ const LSN_HERO=()=>({age:28,bank:8400,en:6,trust:85,edu:6,prep:0,prof:'fincon',c
 function lessonMenu(){if(st!=='play'&&st!=='menu')return;st='menu';const h=['<h2>🎓 Режим урока</h2>'];
  if(!S.lesson)h.push('<p>Специальный режим, чтобы за 5 минут показать игру учителю: создаётся <b>взрослый герой (28 лет)</b> с деньгами, дипломами, правами, машиной, гаражом охотника за штормами и боксёрским опытом.</p><p>Твоя настоящая жизнь сохранится — её можно вернуть в этом же меню.</p>',btn('🎓 Включить режим урока','откроется презентация',"lessonOn()"));
  else h.push(btn('🎤 Презентация','слайды о Финграде и профессиях',"closeOv();presOpen()"),btn('↩ Вернуться к своей жизни','выйти из режима урока',"lessonOff()"));
- h.push(btn('📊 Итоги жизни','всё, что ты заработал, потратил и чему научился',"lifeSum()"),btn('📘 Словарик финансов','все термины из игры',"glossary()"),btn((S.music!==0?'🎵 Музыка: включена':'🔇 Музыка: выключена'),'музыка сочинена кодом прямо в игре',"S.music=S.music!==0?0:1;save();lessonMenu()"),'<button class="big alt" onclick="closeOv()">Закрыть</button>');ov(h.join(''))}
+ h.push(btn('📊 Итоги жизни','всё, что ты заработал, потратил и чему научился',"lifeSum()"),btn('📘 Словарик финансов','все термины из игры',"glossary()"),btn('📖 Как играть','управление и правила',"howTo()"),btn('💼 Как устроиться на работу','пошаговая инструкция',"jobGuide()"),btn((S.music!==0?'🎵 Музыка: включена':'🔇 Музыка: выключена'),'музыка сочинена кодом прямо в игре',"S.music=S.music!==0?0:1;save();lessonMenu()"),'<button class="big alt" onclick="closeOv()">Закрыть</button>');ov(h.join(''))}
 function lessonOn(){try{const cur=localStorage.getItem('lifesim3d');if(cur&&!JSON.parse(cur).lesson)localStorage.setItem('lifesim3d_bak',cur)}catch(e){}
  S=Object.assign(DEF(),LSN_HERO());save();closeOv();where=null;pl.g.position.set(-30,0,55.2);pl.g.rotation.y=facing=Math.PI;yaw=0;pitch=.72;zoom=13;snap=1;try{dress();grow();ownCarSync();propVis()}catch(e){}hud();lsnBtn();TOD.p=.42;sfxChime();setTimeout(presOpen,500)}
 function lessonOff(){try{const b=localStorage.getItem('lifesim3d_bak');if(b)localStorage.setItem('lifesim3d',b);else localStorage.removeItem('lifesim3d')}catch(e){}location.reload()}
@@ -3662,9 +3662,10 @@ function mpLeave(){if(!MP.c)return;const c=MP.c,alone=!Object.keys(MP.mem).lengt
 function mpPub(o){if(MP.c&&MP.c.ok){o.id=MP.id;MP.c.pub(MP.room.t+'/s',JSON.stringify(o))}}
 function mpAct(){if(st==='fly'||st==='fpause'||st==='fend')return'✈️ в полёте';if(CF||DOCK||SEQ)return'🚀 в космосе';if(st==='box')return'🥊 на ринге';if(CH)return'🌪 гонится за штормом';if(st==='build')return'🔧 собирает машину';if(st==='drive'||st==='dend'||st==='dpop')return'🚗 за рулём';if(st==='office'||st==='oend')return'💼 на работе';if(st==='pres')return'🎤 презентация';if(where)return'🏢 '+(BNAME[where]||'в здании');return'🚶 гуляет по городу'}
 function mpSend(force){if(!MP.c||!MP.c.ok)return;const drv=D&&D.car,p=drv?D.car.position:pl.g.position,ry=drv?D.car.rotation.y:pl.g.rotation.y,vis=['play','menu','mis','fjob','drive','dend','dpop','act','story','intro'].includes(st)&&!HT;
- const o={t:'st',n:MP.room.nick,c:MP.col,x:+p.x.toFixed(2),y:+p.y.toFixed(2),z:+p.z.toFixed(2),r:+ry.toFixed(2),v:vis?1:0,car:drv?1:0,w:where||'',a:S.age,b:S.bank,e:S.en,j:S.job?PN[S.job]||'':'',act:mpAct()};
+ const o={t:'st',ts:Date.now(),n:MP.room.nick,c:MP.col,x:+p.x.toFixed(2),y:+p.y.toFixed(2),z:+p.z.toFixed(2),r:+ry.toFixed(2),v:vis?1:0,car:drv?1:0,w:where||'',a:S.age,b:S.bank,e:S.en,j:S.job?PN[S.job]||'':'',act:mpAct()};
  const k=JSON.stringify([o.x,o.z,o.r,o.v,o.car,o.w,o.b,o.e,o.a,o.j,o.act]);if(!force&&k===MP.last&&Date.now()-MP.sentAt<2000)return;MP.last=k;MP.sentAt=Date.now();mpPub(o)}
-setInterval(()=>{try{mpSend(0);if(MP.c&&Date.now()-MP.infoT>30000)mpInfo();const now=Date.now();for(const id in MP.mem)if(now-MP.mem[id].seen>9000){const n=MP.mem[id].n;mpAvDel(id);delete MP.mem[id];mpSys('👋 '+n+' вышел(а) из комнаты');mpBtn()}
+setInterval(()=>{try{mpSend(0)}catch(e){}},100);
+setInterval(()=>{try{if(MP.c&&Date.now()-MP.infoT>30000)mpInfo();const now=Date.now();for(const id in MP.mem)if(now-MP.mem[id].seen>9000){const n=MP.mem[id].n;mpAvDel(id);delete MP.mem[id];mpSys('👋 '+n+' вышел(а) из комнаты');mpBtn()}
  for(const k in MP.tx){const t=MP.tx[k];if(now-t.at>7000){S.bank+=t.amt;save();hud();delete MP.tx[k];pop('⚠️ Перевод не дошёл — '+t.amt+' 🪙 вернулись')}}}catch(e){}},250);
 function mpMsg(tp,raw){let m;try{m=JSON.parse(raw)}catch(e){return}if(!m||m.id===MP.id)return;const M=MP.mem[m.id];
  if(m.t==='st'){if(!M){MP.mem[m.id]={n:m.n,seen:Date.now()};mpSys('🙋 '+m.n+' в семье!');pop('👨‍👩‍👧 '+m.n+' зашёл(ла) в комнату');sfxChime();mpSend(1);mpBtn()}Object.assign(MP.mem[m.id],m,{seen:Date.now()});mpAv(m.id)}
@@ -3685,15 +3686,20 @@ function mpAv(id){const m=MP.mem[id];let A=MPAV[id];if(!A){const r4=a=>a[Math.fl
   const tag=new THREE.Sprite(new THREE.SpriteMaterial({map:mpNameTex('👪 '+m.n,m.c||0xe84a5f),depthTest:false,fog:false,transparent:true}));tag.renderOrder=5;sc.add(tag);
   const car=new THREE.Group(),body=new THREE.Mesh(new THREE.BoxGeometry(1.9,.7,4.1),PM(m.c||0xe84a5f,80));body.position.y=.65;const cab=new THREE.Mesh(new THREE.BoxGeometry(1.6,.6,2),PM(0x22303c,90));cab.position.set(0,1.25,-.2);car.add(body,cab);
   for(const [x,z] of[[-.9,1.3],[.9,1.3],[-.9,-1.3],[.9,-1.3]]){const w=new THREE.Mesh(new THREE.CylinderGeometry(.38,.38,.3,12),LM(0x1a1a1a));w.rotation.z=Math.PI/2;w.position.set(x,.38,z);car.add(w)}car.visible=false;sc.add(car);
-  A=MPAV[id]={o,tag,car,x:m.x,y:m.y,z:m.z,r:m.r,bub:null,bubT:0,ph:Math.random()*9}}
- A.tx=m.x;A.ty=m.y;A.tz=m.z;A.tr=m.r}
+  A=MPAV[id]={o,tag,car,x:m.x,y:m.y,z:m.z,r:m.r,bub:null,bubT:0,ph:Math.random()*9,buf:[]}}
+ const now=Date.now(),ts=m.ts||now,est=now-ts;A.off=A.off===undefined?est:Math.min(est,A.off+Math.max(0,now-(A.lastRx||now))*.02);const gap=A.lastRx?now-A.lastRx:100;A.gap=A.gap===undefined?100:A.gap+(Math.min(gap,1500)-A.gap)*.1;A.jit=(A.jit||0)+(Math.abs(gap-A.gap)-(A.jit||0))*.1;A.lastRx=now;
+ const L=A.buf[A.buf.length-1],smp={t:ts+A.off,x:m.x,y:m.y,z:m.z,r:m.r};if(L&&smp.t<=L.t)return;if(!L||Math.hypot(m.x-L.x,m.z-L.z)>30){A.buf=[smp];A.x=m.x;A.y=m.y;A.z=m.z;A.r=m.r}else{A.buf.push(smp);if(A.buf.length>40)A.buf.shift()}}
+
+function mpSample(A){const B=A.buf;if(!B.length)return null;const rt=Date.now()-Math.max(110,Math.min(500,(A.gap||100)*1.2+(A.jit||0)*2+20));if(rt<=B[0].t)return B[0];
+ for(let i=B.length-2;i>=0;i--){const a=B[i],b=B[i+1];if(rt>=a.t&&rt<=b.t){const k=(rt-a.t)/Math.max(1,b.t-a.t);let dr=b.r-a.r;dr=Math.atan2(Math.sin(dr),Math.cos(dr));return{x:a.x+(b.x-a.x)*k,y:a.y+(b.y-a.y)*k,z:a.z+(b.z-a.z)*k,r:a.r+dr*k}}}
+ const b=B[B.length-1],a=B[B.length-2];if(!a)return b;const span=b.t-a.t;if(span<40||span>1200)return b;const ex=Math.min(rt-b.t,200)/span;let dx=(b.x-a.x)*ex,dz=(b.z-a.z)*ex;const L=Math.hypot(dx,dz);if(L>1.5){dx*=1.5/L;dz*=1.5/L}return{x:b.x+dx,y:b.y,z:b.z+dz,r:b.r}}
 function mpAvDel(id){const A=MPAV[id];if(!A)return;sc.remove(A.o.g);sc.remove(A.tag);sc.remove(A.car);if(A.bub)sc.remove(A.bub);delete MPAV[id]}
 function mpBubble(id,txt){const A=(id&&MPAV[id])||(id?null:MPSELF);if(!A)return;const c=document.createElement('canvas');c.width=512;c.height=160;const g=c.getContext('2d');g.font='bold 40px "Trebuchet MS",sans-serif';const t=txt.length>24?txt.slice(0,23)+'…':txt,tw=Math.min(500,g.measureText(t).width+50),x0=(512-tw)/2;
  g.fillStyle='#fff';rr(g,x0,10,tw,100,30);g.fill();g.beginPath();g.moveTo(236,108);g.lineTo(256,150);g.lineTo(276,108);g.fill();g.fillStyle='#17324a';g.textAlign='center';g.textBaseline='middle';g.fillText(t,256,60);
  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false,fog:false,transparent:true}));s.scale.set(4,1.25,1);s.renderOrder=6;sc.add(s);if(A.bub)sc.remove(A.bub);A.bub=s;A.bubT=5}
 function mpTick(dt){if(!MP.room&&!MPSELF.bub)return;
- for(const id in MPAV){const A=MPAV[id],m=MP.mem[id];if(!m)continue;const k=Math.min(1,dt*8),ox=A.x,oz=A.z;A.x+=(A.tx-A.x)*k;A.y+=(A.ty-A.y)*k;A.z+=(A.tz-A.z)*k;let dr=A.tr-A.r;dr=Math.atan2(Math.sin(dr),Math.cos(dr));A.r+=dr*k;
-  const sp=Math.hypot(A.x-ox,A.z-oz)/Math.max(dt,.001),onFoot=m.v&&!m.car,inCar=m.v&&m.car;A.o.g.visible=!!onFoot;A.car.visible=!!inCar;
+ for(const id in MPAV){const A=MPAV[id],m=MP.mem[id];if(!m)continue;const q=mpSample(A);if(!q)continue;const ox=A.x,oz=A.z,k=Math.min(1,dt*20);A.x+=(q.x-A.x)*k;A.y+=(q.y-A.y)*k;A.z+=(q.z-A.z)*k;let dr=q.r-A.r;dr=Math.atan2(Math.sin(dr),Math.cos(dr));A.r+=dr*Math.min(1,dt*12);A.sp=(A.sp||0)+(Math.hypot(A.x-ox,A.z-oz)/Math.max(dt,.001)-(A.sp||0))*Math.min(1,dt*6);
+  const sp=A.sp,onFoot=m.v&&!m.car,inCar=m.v&&m.car;A.o.g.visible=!!onFoot;A.car.visible=!!inCar;
   if(onFoot){const o=A.o;o.g.position.set(A.x,A.y,A.z);o.g.rotation.y=A.r;o.g.scale.setScalar(.4+.6*Math.min(m.a||18,18)/18);if(sp>.4){anim(o,tm+A.ph,sp>6.5?'run':'walk');o.g.position.y+=A.y}else{for(const q of['lL','lR','kL','kR','aL','aR','eL','eR'])if(o[q])o[q].rotation.x=0;if(o.top)o.top.rotation.set(0,0,0);o.g.position.y=A.y}}
   if(inCar){A.car.position.set(A.x,A.y,A.z);A.car.rotation.y=A.r}
   const hy=inCar?2.6:2.2*A.o.g.scale.y+.45;A.tag.visible=!!m.v;A.tag.position.set(A.x,A.y+hy,A.z);const d=cam.position.distanceTo(A.tag.position),sc2=Math.max(1,d/14);A.tag.scale.set(2.8*sc2,.7*sc2,1);
@@ -3728,6 +3734,66 @@ function mpFamRender(){const F=$('mpfam');if(!F||!MP.room)return;const me={n:MP.
 setInterval(()=>{if(MP.room&&$('ov').style.display==='flex'&&$('mpfam')&&!(document.activeElement&&document.activeElement.tagName==='INPUT'))mpFamRender()},1500);
 addEventListener('beforeunload',()=>{if(MP.c){try{MP.c.pub(MP.room.t+'/s',JSON.stringify({t:'bye',id:MP.id}))}catch(e){}}});
 {const st2=document.createElement('style');st2.textContent='#mpfam .big,#mpfam .big::after{animation:none!important;opacity:1!important}';(document.head||document.body).appendChild(st2)}
+
+// ===== COMFORT PATCH (v23): goal hints, how-to-play & job guide, non-blocking calls, softer car hits, adaptive quality =====
+// ---------- jobs: where to get hired ----------
+const JOBW={taxi:'taxi',office:'office',pilot:'air',teacher:'school',doctor:'hosp',courier:'deliv',fire:'fire',police:'police',cook:'mall',cashier:'mall',stew:'air',fincon:'bank',boxer:'boxc'};
+const JOBP={teacher:'учительская',cook:'кафе',cashier:'супермаркет',stew:'стойка экипажей',fincon:'стол консультантов',boxer:'тренер'};
+function jobWhere(k){const z=ZB(JOBW[k]);return z?z.ic+' '+z.n+(JOBP[k]?' ('+JOBP[k]+')':' (отдел кадров)'):''}
+function myDips(){return[...new Set((S.dips||[]).concat(S.dip?[S.dip]:[]))].filter(k=>PN[k])}
+function goalNow(){const a=S.age;if(a<5)return null;
+ if(a<18){if(S.edu<6)return['🏫 Учись: пиши контрольные в школе — знания '+Math.min(S.edu,6)+'/6','school'];return['💰 Аттестат есть! Копи деньги — в 18 лет начнётся взрослая жизнь','home']}
+ if(S.job)return['💼 Ты '+(PN[S.job]||'').toLowerCase()+': приходи на смены и получай зарплату',JOBW[S.job]];
+ const d=myDips();if(d.length)return['📝 У тебя диплом! Устройся: '+jobWhere(d[0]),JOBW[d[0]]];
+ if(S.edu<6)return['🏫 Нужен аттестат (знания '+S.edu+'/6) — пиши контрольные в школе','school'];
+ if(S.prof)return['🎓 Учись на «'+PN[S.prof]+'»: курс '+Math.min(S.cr+1,3)+'/3 — 2 лекции и экзамен','uni'];
+ return['🎓 Выбери профессию в университете (деканат) или устройся без диплома','uni']}
+const GOAL=(()=>{const d=document.createElement('div');d.id='goal';d.style.cssText='position:fixed;left:calc(env(safe-area-inset-left,0px) + 10px);top:calc(env(safe-area-inset-top,0px) + 82px);max-width:min(46vw,360px);z-index:2;display:none;padding:6px 11px;border-radius:14px;background:rgba(255,255,255,.93);border:2px solid #ffd23f;color:#17324a;font:800 12.5px "Trebuchet MS",sans-serif;line-height:1.25;box-shadow:0 4px 14px rgba(0,0,0,.18);pointer-events:auto;cursor:pointer;touch-action:manipulation';d.onclick=()=>{if(st==='play')jobGuide()};(document.body||document.documentElement).appendChild(d);return d})();
+let goalTxt='';setInterval(()=>{try{const g=st==='play'&&!where&&S.goalOff!==1?goalNow():null;if(!g){GOAL.style.display='none';return}GOAL.style.display='block';const t='🎯 '+g[0]+' <span style="opacity:.6">ⓘ</span>';if(t!==goalTxt){goalTxt=t;GOAL.innerHTML=t;GOAL.animate&&GOAL.animate([{transform:'scale(1.08)'},{transform:'scale(1)'}],{duration:400})}}catch(e){}},700);
+function jobGuide(){st='menu';const all=['courier','cook','cashier','taxi','office','teacher','doctor','fire','police','pilot','stew','fincon'].filter(k=>PN[k]);
+ const noDip=k=>k==='courier'||k==='cook'||k==='cashier';const d=myDips();
+ ov(`<h2>💼 Как устроиться на работу</h2>
+ <div class="r2" style="display:block"><b>1. 🏫 Аттестат</b> — до 18 лет пиши контрольные в школе, пока знания не станут 6/6. Сейчас: <b>${Math.min(S.edu,6)}/6</b>${S.edu>=6?' ✅':''}</div>
+ <div class="r2" style="display:block"><b>2. 🎓 Университет</b> (с 18 лет) — зайди в <b>деканат</b> и выбери профессию.${S.prof?' Ты учишься на <b>'+PN[S.prof]+'</b>.':''}</div>
+ <div class="r2" style="display:block"><b>3. 📚 Учёба</b> — на каждом курсе 2 лекции (30 🪙) и экзамен. 3 курса = диплом.${S.prof&&!S.dip?' Курсов: <b>'+S.cr+'/3</b>.':''}</div>
+ <div class="r2" style="display:block"><b>4. 📝 Отдел кадров</b> — приди в здание своей профессии, подойди к отделу кадров и нажми «Устроиться».${d.length?' Твои дипломы: <b>'+d.map(k=>PN[k]).join(', ')+'</b> ✅':''}</div>
+ <div class="r2" style="display:block"><b>5. 💵 Смены</b> — на работе нажми «Начать смену», делай задания и получай зарплату (из неё удерживается НДФЛ 13%).</div>
+ <h3>📋 Все профессии</h3>${all.map(k=>`<div class="r2"><span>${PN[k]}${noDip(k)?' <small style="color:#1f9e55">без диплома</small>':hasDip(k)?' ✅':''}</span><span style="text-align:right;font-size:12.5px">${jobWhere(k)} · ${JB[k]||'?'} 🪙</span></div>`).join('')}
+ <p style="font-size:12.5px">💡 Ещё профессии: 🥊 боксёр (клуб «Удар»), 🌪 охотник за штормами (НИИ «Шторм»), 🚀 космонавт (ЦПК), 🏪 свой бизнес (продаётся в городе).</p>
+ <p style="font-size:12.5px">🗺 Здания можно найти на карте — нажми на мини-карту в углу.</p>
+ ${btn('📖 Как играть','управление и правила',"howTo()")}<button class="big alt" onclick="closeOv()">Понятно</button>`,'mid')}
+function howTo(){st='menu';ov(`<h2>📖 Как играть</h2>
+ <h3>🎮 Управление</h3><p>🕹 <b>Джойстик</b> слева — идти. 🏃 <b>Кнопка справа</b> — бежать (тратит выносливость, зелёная полоска). Проведи пальцем по экрану — повернёшь камеру. Подойди к двери или человеку — появится кнопка действия.</p>
+ <h3>📅 Жизнь</h3><p>Каждый год у тебя <b>6 ⚡ энергии</b> — это 6 дел. Когда энергия кончится — иди <b>домой 🏠 и ложись спать</b>: наступит следующий год, тебе исполнится на 1 больше.</p>
+ <h3>🧭 Что делать</h3><p>Смотри на жёлтую подсказку <b>🎯</b> слева вверху — она говорит следующий шаг. Нажми на неё — откроется инструкция «Как устроиться на работу».</p>
+ <h3>💰 Деньги</h3><p>Работай, копи на вкладе в банке 🏦, вкладывай в акции и облигации 📈, плати налоги и штрафы вовремя. Не отвечай мошенникам 📞! В <b>📊 паспорте</b> видно, как ты справляешься.</p>
+ <h3>🔘 Кнопки вверху</h3><p>🌐 — играть с друзьями · 🎓 — режим урока, итоги жизни, словарик · ⌚ — время · 📊 — финансовый паспорт · ⚙ — настройки и графика.</p>
+ <button class="big" onclick="${S.age>=18?'jobGuide()':'closeOv()'}">${S.age>=18?'💼 Как устроиться на работу':'Понятно!'}</button>${S.age>=18?'<button class="big alt" onclick="closeOv()">Понятно</button>':''}`,'mid');S.howto=1;save()}
+// show the how-to once for players who have never seen it
+setTimeout(()=>{if(!navigator.webdriver&&!S.howto&&S.age>=5&&st==='play'&&!S.lesson&&!INTRO)howTo()},6000);
+// ---------- incoming calls: small non-blocking notification instead of a full-screen menu ----------
+const PHC=(()=>{const d=document.createElement('div');d.id='phc';d.style.cssText='position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 54px);transform:translateX(-50%);z-index:9;display:none;width:min(92vw,380px);padding:9px 12px;border-radius:20px;background:rgba(20,28,40,.94);color:#fff;font:700 13px "Trebuchet MS",sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.4);pointer-events:auto';(document.body||document.documentElement).appendChild(d);return d})();
+let phT=null,phR=null;
+function phEnd(){PHC.style.display='none';clearTimeout(phT);clearInterval(phR)}
+scamTick=function(dt){if(st!=='play'||S.age<10||mapOpen||PHC.style.display==='block')return;scamT-=dt;if(scamT>0)return;scamT=80+Math.random()*80;if(S.scamY===S.age&&(S.scamN||0)>=2)return;if(S.scamY!==S.age){S.scamY=S.age;S.scamN=0}S.scamN++;
+ const L=S.age<18?KSCAMS.concat(SCAMS.slice(1,3)):SCAMS;SC=L[rnd(0,L.length-1)];const sms=/СМС|чат/.test(SC.w+SC.num);try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(e){}
+ const ring=()=>{tone(660,0,.25,.04);tone(880,.3,.25,.04)};ring();if(!sms)phR=setInterval(ring,2200);
+ PHC.innerHTML=`<div style="display:flex;align-items:center;gap:10px"><div style="font-size:26px">${sms?'💬':'📞'}</div><div style="flex:1;min-width:0"><div style="opacity:.7;font-size:11px">${sms?'Новое сообщение':'Входящий звонок'}</div><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${SC.w}</div><div style="opacity:.7;font-size:11px">${SC.num}</div></div>
+ <button onclick="phEnd();st='menu';scamAns()" style="width:48px;height:48px;border-radius:50%;border:0;background:#2fbf71;color:#fff;font-size:20px">${sms?'👁':'📞'}</button><button onclick="phEnd();scamDrop()" style="width:48px;height:48px;border-radius:50%;border:0;background:#e5484d;color:#fff;font-size:20px">✖</button></div>`;
+ PHC.style.display='block';PHC.animate&&PHC.animate([{transform:'translate(-50%,-30px)',opacity:0},{transform:'translate(-50%,0)',opacity:1}],{duration:350,easing:'ease-out'});
+ phT=setTimeout(()=>{phEnd();pop(sms?'💬 Сообщение осталось непрочитанным':'📵 Пропущенный звонок')},14000)};
+// ---------- softer hits: a car no longer kills — you end up in hospital ----------
+{const _die=die;die=function(){if(HT&&!HT.storm){HT.why=HT.why||'Тебя сбила машина';HT.heavy=1;HT.tip=HT.tip||'Переходи дорогу только по зебре и на зелёный свет, смотри по сторонам и не сиди в телефоне на дороге.';return recover()}return _die.apply(this,arguments)}}
+// ---------- police zones: hide the red circles (logic stays) ----------
+try{ZONEM.visible=false}catch(e){}
+// ---------- boxing for adults ----------
+function boxAdult(){const b=BXd();if(b.on)return;const fee=40;if(S.bank<fee)return pop('Абонемент стоит '+fee+' 🪙 — не хватает денег');S.bank-=fee;S.stat.spend=(S.stat.spend||0)+fee;b.on=1;b.compAt=rnd(10,15);b.y0=S.age;save();hud();achCheck();st='menu';
+ ov(`<h2>🥊 Ты записался на бокс!</h2><p>Ты купил абонемент в <b>клуб «Удар»</b> за ${fee} 🪙.</p><p>📅 Тренировки каждый день с <b>${TRW[0]}:00 до ${TRW[1]}:00</b> — смотри на часы ⌚.</p><p>💡 <b>Финансы:</b> абонемент — это <b>инвестиция в здоровье</b>. После победы на соревнованиях можно стать профессионалом и получать гонорары.</p><button class="big" onclick="closeOv()">В бой!</button>`,'mid')}
+// ---------- adaptive quality for old phones ----------
+{let fr=0,t0=performance.now(),low=0,auto=1;try{if(localStorage.getItem('ls3dqm'))auto=0;if(localStorage.getItem('ls3dq')===null){const weak=(navigator.hardwareConcurrency||8)<=4||(navigator.deviceMemory||8)<=3;if(weak&&GQ.lvl>1){GQ.lvl=1;applyQ()}}}catch(e){}
+ const _sq=setQ;setQ=function(v){try{localStorage.setItem('ls3dqm','1')}catch(e){}auto=0;_sq(v)};
+ (function f(){fr++;const n=performance.now();if(n-t0>=3000){const fps=fr*1000/(n-t0);fr=0;t0=n;
+  if(auto&&st==='play'&&!document.hidden&&GQ.lvl>0){if(fps<22)low++;else low=0;if(low>=2){low=0;GQ.lvl--;try{localStorage.setItem('ls3dq',GQ.lvl)}catch(e){}applyQ();pop('⚙ Графика понижена, чтобы игра не тормозила')}}}requestAnimationFrame(f)})()}
 
 // ===== MINIMAP + CITY MAP =====
 const MMS=2,MMI=document.createElement('canvas');MMI.width=MMI.height=MAPR*2*MMS;
@@ -3815,9 +3881,9 @@ if(st==='fly'||st==='fpause'||st==='fend'){flightLoop(dt);R.render(FS,cam);retur
 if(INTRO){introLoop(dt);return}if(PRES){presLoop(dt);return}if(TL){tlLoop(dt);return}if(CH&&st==='chase'){chaseLoop(dt);return}if(CH){R.render(TSC.s,cam);return}if(CF){cfLoop(dt);return}if(DOCK){dockLoop(dt);return}if(SEQ){seqLoop(dt);return}if(st==='box'&&BX){boxLoop(dt);return}if(st==='build'&&BLDM){buildLoop(dt);return}if(HT){hitLoop(dt);return}if(st==='drive'||st==='dend'||st==='dpop'){driveLoop(dt);return}if(st==='office'||st==='oend'){officeLoop(dt);return}
 const p=pl.g.position;let mv=false,spr=false;
 if((st==='play'||st==='fjob'||st==='mis')&&S.age>=5){let vx=jx+(KD.right?1:0)-(KD.left?1:0),vz=jz+(KD.back?1:0)-(KD.fwd?1:0);const l=Math.hypot(vx,vz);
-if(l>.15){mv=true;const run=(sprH||KD.run)&&stam>0;if(run)stam=Math.max(0,stam-30*dt);spr=run;
-const k=Math.min(1,l)*(5+S.age*.1)*(run?1.8:1)*dt/l,cs=Math.cos(yaw),sn=Math.sin(yaw),wx=vx*cs+vz*sn,wz=-vx*sn+vz*cs;p.x+=wx*k;p.z+=wz*k;facing=Math.atan2(-wx,-wz)}}
-if(!(sprH||KD.run))stam=Math.min(100,stam+20*dt);if(!mv)spr=false;
+if(l>.15){mv=true;const run=(sprH||KD.run)&&stam>0;if(run)stam=Math.max(0,stam-11*dt);spr=run;
+const k=Math.min(1,l)*(5+S.age*.1)*(run?1.45:1)*dt/l,cs=Math.cos(yaw),sn=Math.sin(yaw),wx=vx*cs+vz*sn,wz=-vx*sn+vz*cs;p.x+=wx*k;p.z+=wz*k;facing=Math.atan2(-wx,-wz)}}
+if(!(sprH||KD.run))stam=Math.min(100,stam+14*dt);if(!mv)spr=false;
 sb.firstChild.style.width=stam+'%';sb.className=stam<=0?'empty':'';sp.className=spr?'on':'';
 for(const c of(where?ICOL[where]:COL)){const dx=p.x-c[0],dz=p.z-c[1],ox=c[2]+.45-Math.abs(dx),oz=c[3]+.45-Math.abs(dz);if(ox>0&&oz>0){if(ox<oz)p.x+=(dx<0?-1:1)*ox;else p.z+=(dz<0?-1:1)*oz}}
 {const IP=where&&PLANS[where],c=where?INB[where]:0,w=IP?IP.w/2-.5:262,zn=IP?-IP.d/2+.5:-262,zx=IP?IP.d/2-.6:262;p.x=Math.max(c-w,Math.min(c+w,p.x));p.z=Math.max(zn,Math.min(zx,p.z))}
