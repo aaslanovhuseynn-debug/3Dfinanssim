@@ -3641,34 +3641,50 @@ const MPBROKERS=['wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/
 const MPCOL=[0xe84a5f,0x2a9df4,0x26c281,0xf5a623,0x9b59b6,0x1abc9c,0xe67e22,0xff6fb5];
 const MP={c:null,room:null,id:'f'+Math.random().toString(36).slice(2,10),mem:{},chat:[],tx:{},seen:{},last:'',sentAt:0,infoT:0,st:'off'};
 function mpHash(s){let h1=0xdeadbeef,h2=0x41c6ce57;for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);h1=Math.imul(h1^c,2654435761);h2=Math.imul(h2^c,1597334677)}h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);return(h2>>>0).toString(36)+(h1>>>0).toString(36)}
-function mpBrokers(){let o=null;try{o=localStorage.getItem('mpbroker')}catch(e){}return o?[o]:MPBROKERS}
+function mpBrokers(){let o=null;try{o=localStorage.getItem('mpbroker')}catch(e){}return o?o.split(','):MPBROKERS}
 function mpTopic(name,code){return'fngrd1/'+mpHash(name.trim().toLowerCase()+'|'+code.trim())}
-function mpTry(list,i,room,mode,done){if(i>=list.length)return done('net');const c=MQ(list[i],{id:MP.id,will:{topic:room.t+'/s',msg:JSON.stringify({t:'bye',id:MP.id})}});let fin=false,info=null;
- const fail=()=>{if(fin)return;fin=true;try{c.end()}catch(e){}mpTry(list,i+1,room,mode,done)};const to=setTimeout(fail,6000);
- c.on.err=()=>{clearTimeout(to);fail()};c.on.close=()=>{if(!fin){clearTimeout(to);fail()}};
- c.on.msg=(tp,m)=>{if(tp===room.t+'/info'&&m){try{info=JSON.parse(m)}catch(e){}}};
- c.on.conn=()=>{clearTimeout(to);c.sub(room.t+'/info');setTimeout(()=>{if(fin)return;const fresh=info&&Math.abs(Date.now()-info.ts)<5*60e3;fin=true;
-  if(mode==='join'&&!fresh){c.end();return done('nf')}done(null,c,list[i],mode==='make'&&fresh?'join':mode)},1800)}}
+// --- connection hub: talks to ALL brokers at once, so every player meets the others on at least one of them ---
+const MPH={conns:[],seq:0,dedup:new Map()};
+function mpOpen(url,room){const C={url,c:null,ok:false,dead:false,tries:0};
+ const go=()=>{if(C.dead)return;const c=MQ(url,{id:MP.id+'_'+Math.random().toString(36).slice(2,6)});C.c=c;
+  c.on.conn=()=>{C.ok=true;C.tries=0;c.sub(room.t+'/s');c.sub(room.t+'/info');if(MP.room&&MP.st==='on'){mpSend(1)}else mpPub({t:'hi'})};
+  c.on.msg=(tp,m,ret)=>mpIn(tp,m,ret);c.on.err=()=>{};c.on.close=()=>{C.ok=false;if(!C.dead){C.tries++;setTimeout(go,Math.min(15000,1500*C.tries))}}};
+ go();MPH.conns.push(C);return C}
+function mpOk(){return MPH.conns.some(C=>C.ok)}
+function mpRaw(topic,msg,retain){for(const C of MPH.conns)if(C.ok)try{C.c.pub(topic,msg,retain)}catch(e){}}
+function mpCloseAll(){for(const C of MPH.conns){C.dead=true;try{C.c&&C.c.end()}catch(e){}}MPH.conns=[]}
+function mpIn(tp,raw,ret){const R=MP.room||MP.pend;if(!R)return;
+ if(tp===R.t+'/info'){if(raw){try{const i=JSON.parse(raw);if(Math.abs(Date.now()-i.ts)<2*3600e3)R.info=1}catch(e){}}return}
+ let m;try{m=JSON.parse(raw)}catch(e){return}if(!m||m.id===MP.id)return;const key=m.id+':'+m.q;if(m.q!=null){if(MPH.dedup.has(key))return;MPH.dedup.set(key,1);if(MPH.dedup.size>800){const it=MPH.dedup.keys();for(let i=0;i<300;i++)MPH.dedup.delete(it.next().value)}}
+ if(!MP.room){if(m.t==='st'||m.t==='hi')R.seen=1;return}if(m.t==='hi'){mpSend(1);return}mpMsg(tp,m)}
 function mpConnect(mode){if(MP.st==='wait')return;const nm0=(($('mpn')||{}).value||'').trim(),secret=/\$\$$/.test(nm0),nm=nm0.replace(/\$+$/,'').trim(),rn=($('mpr')||{}).value||'',cd=($('mpc')||{}).value||'',er=$('mpe');const say=t=>{if(er)er.textContent=t};
- if(nm.trim().length<2)return say('Введи своё имя (хотя бы 2 буквы)');if(rn.trim().length<3)return say('Название комнаты — хотя бы 3 символа');if(cd.trim().length<4)return say('Код — хотя бы 4 символа');
+ if(nm.length<2)return say('Введи своё имя (хотя бы 2 буквы)');if(rn.trim().length<3)return say('Название комнаты — хотя бы 3 символа');if(cd.trim().length<4)return say('Код — хотя бы 4 символа');
  if(navigator.onLine===false)return say('📵 Нет интернета. Мультиплеер работает только онлайн.');
- const room={n:rn.trim(),code:cd.trim(),t:mpTopic(rn,cd),nick:nm.trim().slice(0,14)};try{localStorage.setItem('mplast',JSON.stringify({n:room.n,code:room.code,nick:room.nick}))}catch(e){}
- say('⏳ Подключаюсь к серверу…');MP.st='wait';mpTry(mpBrokers(),0,room,mode,(err,c,url,m2)=>{MP.st='off';if(err)return say(err==='nf'?'❌ Комната не найдена. Проверь название и код (или в комнате сейчас никого нет).':err==='busy'?'⚠️ Такая комната уже есть — нажми «Войти».':'📵 Не удалось подключиться к серверу. Проверь интернет и попробуй ещё раз.');if(m2!==mode)pop('Такая комната уже есть — ты вошёл в неё');mpStart(c,room,url,m2||mode);if(secret)setTimeout(jackpot,1400)})}
-function mpStart(c,room,url,mode){MP.c=c;MP.room=room;MP.url=url;MP.st='on';MP.mem={};MP.chat=[];MP.seen={};MP.tx={};MP.col=MPCOL[Math.floor(Math.random()*MPCOL.length)];
- c.on.msg=mpMsg;c.on.close=()=>{if(MP.c===c){mpDrop();pop('📵 Связь с комнатой потеряна')}};c.on.err=()=>{};c.sub(room.t+'/s');mpInfo();mpSend(1);mpSys((mode==='make'?'🏠 Комната создана':'🚪 Ты вошёл в комнату')+' «'+room.n+'»');
+ const room={n:rn.trim(),code:cd.trim(),t:mpTopic(rn,cd),nick:nm.slice(0,14)};try{localStorage.setItem('mplast',JSON.stringify({n:room.n,code:room.code,nick:room.nick}))}catch(e){}
+ say('⏳ Подключаюсь к серверам…');MP.st='wait';mpCloseAll();MP.pend=room;for(const u of mpBrokers())mpOpen(u,room);
+ const t0=Date.now();let hiT=0;const iv=setInterval(()=>{const el=Date.now()-t0,ok=mpOk();
+  if(ok&&Date.now()-hiT>1200){hiT=Date.now();mpPub({t:'hi'})}
+  if(ok)say('⏳ '+(mode==='join'?'Ищу комнату':'Создаю комнату')+'… (серверов: '+MPH.conns.filter(C=>C.ok).length+'/'+MPH.conns.length+')');
+  const found=room.seen||room.info;
+  if((mode==='join'&&found&&el>1500)||(mode==='make'&&ok&&el>3500)||(mode==='join'&&ok&&el>7000)||el>12000){clearInterval(iv);MP.pend=null;MP.st='off';
+   if(!ok){mpCloseAll();return say('📵 Не удалось подключиться к серверу. Проверь интернет и попробуй ещё раз (лучше открыть игру в обычном браузере — Chrome или Safari).')}
+   if(mode==='join'&&!found){mpCloseAll();return say('❌ Комната не найдена. Проверь название и код — и что создатель комнаты сейчас в игре.')}
+   const m2=mode==='make'&&found?'join':mode;if(m2!==mode)pop('Такая комната уже есть — ты вошёл в неё');mpStart(room,m2);if(secret)setTimeout(jackpot,1400)}},300)}
+function mpStart(room,mode){MP.room=room;MP.st='on';MP.mem={};MP.chat=[];MP.seen={};MP.tx={};MP.col=MPCOL[Math.floor(Math.random()*MPCOL.length)];
+ mpInfo();mpSend(1);mpPub({t:'hi'});mpSys((mode==='make'?'🏠 Комната создана':'🚪 Ты вошёл в комнату')+' «'+room.n+'»');
  closeOv();banner(mode==='make'?'🏠 Комната «'+room.n+'» создана!':'👨‍👩‍👧 Ты в семье «'+room.n+'»!',mode==='make'?'скажи друзьям название и код':'родственники видят тебя в городе');mpBtn()}
-function mpInfo(){if(MP.c)MP.c.pub(MP.room.t+'/info',JSON.stringify({n:MP.room.n,ts:Date.now()}),true);MP.infoT=Date.now()}
-function mpDrop(){for(const id in MP.mem)mpAvDel(id);MP.mem={};MP.c=null;MP.room=null;MP.st='off';mpBtn()}
-function mpLeave(){if(!MP.c)return;const c=MP.c,alone=!Object.keys(MP.mem).length;try{c.pub(MP.room.t+'/s',JSON.stringify({t:'bye',id:MP.id}));if(alone)c.pub(MP.room.t+'/info','',true)}catch(e){}MP.c=null;setTimeout(()=>c.end(),300);for(const id in MP.mem)mpAvDel(id);MP.mem={};MP.room=null;MP.st='off';mpBtn();pop('🚪 Ты вышел из комнаты');closeOv()}
-function mpPub(o){if(MP.c&&MP.c.ok){o.id=MP.id;MP.c.pub(MP.room.t+'/s',JSON.stringify(o))}}
+function mpInfo(){if(MP.room)mpRaw(MP.room.t+'/info',JSON.stringify({n:MP.room.n,ts:Date.now()}),true);MP.infoT=Date.now()}
+function mpDrop(){for(const id in MP.mem)mpAvDel(id);MP.mem={};mpCloseAll();MP.room=null;MP.st='off';mpBtn()}
+function mpLeave(){if(!MP.room)return;const alone=!Object.keys(MP.mem).length;mpPub({t:'bye'});if(alone)mpRaw(MP.room.t+'/info','',true);setTimeout(mpCloseAll,400);for(const id in MP.mem)mpAvDel(id);MP.mem={};MP.room=null;MP.st='off';mpBtn();pop('🚪 Ты вышел из комнаты');closeOv()}
+function mpPub(o){const R=MP.room||MP.pend;if(!R||!mpOk())return;o.id=MP.id;o.q=++MPH.seq;mpRaw(R.t+'/s',JSON.stringify(o))}
 function mpAct(){if(st==='fly'||st==='fpause'||st==='fend')return'✈️ в полёте';if(CF||DOCK||SEQ)return'🚀 в космосе';if(st==='box')return'🥊 на ринге';if(CH)return'🌪 гонится за штормом';if(st==='build')return'🔧 собирает машину';if(st==='drive'||st==='dend'||st==='dpop')return'🚗 за рулём';if(st==='office'||st==='oend')return'💼 на работе';if(st==='pres')return'🎤 презентация';if(where)return'🏢 '+(BNAME[where]||'в здании');return'🚶 гуляет по городу'}
-function mpSend(force){if(!MP.c||!MP.c.ok)return;const drv=D&&D.car,p=drv?D.car.position:pl.g.position,ry=drv?D.car.rotation.y:pl.g.rotation.y,vis=['play','menu','mis','fjob','drive','dend','dpop','act','story','intro'].includes(st)&&!HT;
+function mpSend(force){if(!MP.room||!mpOk())return;const drv=D&&D.car,p=drv?D.car.position:pl.g.position,ry=drv?D.car.rotation.y:pl.g.rotation.y,vis=['play','menu','mis','fjob','drive','dend','dpop','act','story','intro'].includes(st)&&!HT;
  const o={t:'st',ts:Date.now(),n:MP.room.nick,c:MP.col,x:+p.x.toFixed(2),y:+p.y.toFixed(2),z:+p.z.toFixed(2),r:+ry.toFixed(2),v:vis?1:0,car:drv?1:0,w:where||'',a:S.age,b:S.bank,e:S.en,j:S.job?PN[S.job]||'':'',act:mpAct()};
  const k=JSON.stringify([o.x,o.z,o.r,o.v,o.car,o.w,o.b,o.e,o.a,o.j,o.act]);if(!force&&k===MP.last&&Date.now()-MP.sentAt<2000)return;MP.last=k;MP.sentAt=Date.now();mpPub(o)}
-setInterval(()=>{try{mpSend(0)}catch(e){}},100);
-setInterval(()=>{try{if(MP.c&&Date.now()-MP.infoT>30000)mpInfo();const now=Date.now();for(const id in MP.mem)if(now-MP.mem[id].seen>9000){const n=MP.mem[id].n;mpAvDel(id);delete MP.mem[id];mpSys('👋 '+n+' вышел(а) из комнаты');mpBtn()}
+setInterval(()=>{try{mpSend(0)}catch(e){}},160);
+let mpLost=0;setInterval(()=>{try{if(MP.room&&Date.now()-MP.infoT>30000)mpInfo();const now=Date.now();if(MP.room){if(mpOk())mpLost=0;else if(!mpLost)mpLost=now;else if(now-mpLost>4000&&!MP.warned){MP.warned=1;pop('📶 Связь пропала — переподключаюсь…')}if(mpOk()&&MP.warned){MP.warned=0;pop('✅ Связь восстановлена')}}for(const id in MP.mem)if(now-MP.mem[id].seen>(mpLost?60000:15000)){const n=MP.mem[id].n;mpAvDel(id);delete MP.mem[id];mpSys('👋 '+n+' вышел(а) из комнаты');mpBtn()}
  for(const k in MP.tx){const t=MP.tx[k];if(now-t.at>7000){S.bank+=t.amt;save();hud();delete MP.tx[k];pop('⚠️ Перевод не дошёл — '+t.amt+' 🪙 вернулись')}}}catch(e){}},250);
-function mpMsg(tp,raw){let m;try{m=JSON.parse(raw)}catch(e){return}if(!m||m.id===MP.id)return;const M=MP.mem[m.id];
+function mpMsg(tp,m){const M=MP.mem[m.id];
  if(m.t==='st'){if(!M){MP.mem[m.id]={n:m.n,seen:Date.now()};mpSys('🙋 '+m.n+' в семье!');pop('👨‍👩‍👧 '+m.n+' зашёл(ла) в комнату');sfxChime();mpSend(1);mpBtn()}Object.assign(MP.mem[m.id],m,{seen:Date.now()});mpAv(m.id)}
  else if(m.t==='bye'){if(M){mpAvDel(m.id);delete MP.mem[m.id];mpSys('👋 '+M.n+' вышел(а) из комнаты');pop('👋 '+M.n+' вышел(а)');mpBtn()}}
  else if(m.t==='chat'){const n=M?M.n:'?',t=String(m.m||'').slice(0,80);mpSys('💬 '+n+': '+t);pop('💬 '+n+': '+t);mpBubble(m.id,t);tone(988,0,.06,.025);tone(1319,.07,.08,.025)}
@@ -3677,7 +3693,7 @@ function mpMsg(tp,raw){let m;try{m=JSON.parse(raw)}catch(e){return}if(!m||m.id==
 function mpSys(t){MP.chat.push(t);if(MP.chat.length>30)MP.chat.shift();mpLog()}
 function mpLog(){const L=$('mplog');if(L){L.innerHTML=MP.chat.slice(-12).map(x=>`<div>${mpEsc(x)}</div>`).join('')||'<i>Пока тихо…</i>';L.scrollTop=1e6}}
 function mpEsc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function mpChat(txt){txt=(txt||'').trim().slice(0,80);if(!txt||!MP.c)return;mpPub({t:'chat',m:txt});mpSys('💬 Я: '+txt);mpBubble(null,txt);const i=$('mpm');if(i)i.value=''}
+function mpChat(txt){txt=(txt||'').trim().slice(0,80);if(!txt||!MP.room)return;mpPub({t:'chat',m:txt});mpSys('💬 Я: '+txt);mpBubble(null,txt);const i=$('mpm');if(i)i.value=''}
 function mpGive(id){const M=MP.mem[id],inp=$('mpg_'+id);if(!M||!inp)return;const a=Math.floor(+inp.value);if(!(a>0))return pop('Введи сумму');if(a>S.bank)return pop('Не хватает денег: у тебя '+S.bank+' 🪙');
  const k=MP.id+Date.now().toString(36);S.bank-=a;save();hud();MP.tx[k]={amt:a,n:M.n,at:Date.now()};mpPub({t:'tx',to:id,amt:a,k,m:(($('mpgm_'+id)||{}).value||'').trim().slice(0,40)});mpSys('💸 Ты перевёл(а) '+M.n+' '+a+' 🪙');pop('💸 Отправлено '+a+' 🪙 → '+M.n);inp.value='';const nm=$('mpgm_'+id);if(nm)nm.value='';mpFamRender()}
 // --- avatars ---
@@ -3733,7 +3749,7 @@ function mpFamRender(){const F=$('mpfam');if(!F||!MP.room)return;const me={n:MP.
  ${m.self?'':`<div style="display:grid;grid-template-columns:92px minmax(0,1fr) 56px;gap:6px;margin-top:5px;align-items:center"><input id="mpg_${m.id}" ${MPIN} type="number" min="1" inputmode="numeric" placeholder="сумма"><input id="mpgm_${m.id}" ${MPIN} maxlength="40" placeholder="на что? (необяз.)"><button class="big" style="width:56px;margin:0;min-height:44px;padding:0" onclick="mpGive('${m.id}')">💸</button></div>`}</div>`}).join('')+(L.length<2?'<p><i>Пока ты один в комнате. Скажи друзьям название и код!</i></p>':'');
  for(const k in keep){const i=$(k);if(i)i.value=keep[k]}}
 setInterval(()=>{if(MP.room&&$('ov').style.display==='flex'&&$('mpfam')&&!(document.activeElement&&document.activeElement.tagName==='INPUT'))mpFamRender()},1500);
-addEventListener('beforeunload',()=>{if(MP.c){try{MP.c.pub(MP.room.t+'/s',JSON.stringify({t:'bye',id:MP.id}))}catch(e){}}});
+addEventListener('beforeunload',()=>{if(MP.room){try{mpPub({t:'bye'})}catch(e){}}});
 {const st2=document.createElement('style');st2.textContent='#mpfam .big,#mpfam .big::after{animation:none!important;opacity:1!important}';(document.head||document.body).appendChild(st2)}
 
 // ===== COMFORT PATCH (v23): goal hints, how-to-play & job guide, non-blocking calls, softer car hits, adaptive quality =====
