@@ -3644,19 +3644,22 @@ function mpHash(s){let h1=0xdeadbeef,h2=0x41c6ce57;for(let i=0;i<s.length;i++){c
 function mpBrokers(){let o=null;try{o=localStorage.getItem('mpbroker')}catch(e){}return o?o.split(','):MPBROKERS}
 function mpTopic(name,code){return'fngrd1/'+mpHash(name.trim().toLowerCase()+'|'+code.trim())}
 // --- connection hub: talks to ALL brokers at once, so every player meets the others on at least one of them ---
-const MPH={conns:[],seq:0,dedup:new Map()};
+const MPH={conns:[],seq:0,dedup:new Map(),allUntil:0};
 function mpOpen(url,room){const C={url,c:null,ok:false,dead:false,tries:0};
  const go=()=>{if(C.dead)return;const c=MQ(url,{id:MP.id+'_'+Math.random().toString(36).slice(2,6)});C.c=c;
   c.on.conn=()=>{C.ok=true;C.tries=0;c.sub(room.t+'/s');c.sub(room.t+'/info');if(MP.room&&MP.st==='on'){mpSend(1)}else mpPub({t:'hi'})};
-  c.on.msg=(tp,m,ret)=>mpIn(tp,m,ret);c.on.err=()=>{};c.on.close=()=>{C.ok=false;if(!C.dead){C.tries++;setTimeout(go,Math.min(15000,1500*C.tries))}}};
+  c.on.msg=(tp,m,ret)=>mpIn(tp,m,ret);c.on.err=()=>{};c.on.close=()=>{C.ok=false;if(!C.dead){C.tries++;setTimeout(go,Math.min(6000,1000*C.tries))}}};
  go();MPH.conns.push(C);return C}
 function mpOk(){return MPH.conns.some(C=>C.ok)}
-function mpRaw(topic,msg,retain){for(const C of MPH.conns)if(C.ok)try{C.c.pub(topic,msg,retain)}catch(e){}}
+// one shared server: the first broker that EVERY player in the room can reach (like the first version); if none is shared — send via all
+function mpMask(){const L=mpBrokers();let m=0;L.forEach((u,i)=>{if(MPH.conns.some(C=>C.url===u&&C.ok))m|=1<<i});return m}
+function mpHome(){if(!MP.room)return-1;let m=mpMask();for(const id in MP.mem){const b=MP.mem[id].bm;if(typeof b==='number')m&=b}if(!m)return-1;let i=0;while(!(m&1)){m>>=1;i++}return i}
+function mpRaw(topic,msg,retain,all){const L=mpBrokers(),h=all?-1:mpHome(),hu=h>=0?L[h]:null;for(const C of MPH.conns)if(C.ok&&(!hu||C.url===hu))try{C.c.pub(topic,msg,retain)}catch(e){}}
 function mpCloseAll(){for(const C of MPH.conns){C.dead=true;try{C.c&&C.c.end()}catch(e){}}MPH.conns=[]}
 function mpIn(tp,raw,ret){const R=MP.room||MP.pend;if(!R)return;
  if(tp===R.t+'/info'){if(raw){try{const i=JSON.parse(raw);if(Math.abs(Date.now()-i.ts)<2*3600e3)R.info=1}catch(e){}}return}
  let m;try{m=JSON.parse(raw)}catch(e){return}if(!m||m.id===MP.id)return;const key=m.id+':'+m.q;if(m.q!=null){if(MPH.dedup.has(key))return;MPH.dedup.set(key,1);if(MPH.dedup.size>800){const it=MPH.dedup.keys();for(let i=0;i<300;i++)MPH.dedup.delete(it.next().value)}}
- if(!MP.room){if(m.t==='st'||m.t==='hi')R.seen=1;return}if(m.t==='hi'){mpSend(1);return}mpMsg(tp,m)}
+ if(!MP.room){if(m.t==='st'||m.t==='hi')R.seen=1;return}if(typeof m.bm==='number'&&MP.mem[m.id])MP.mem[m.id].bm=m.bm;if(m.t==='hi'){MPH.allUntil=Date.now()+4000;mpSend(1);return}mpMsg(tp,m)}
 function mpConnect(mode){if(MP.st==='wait')return;const nm0=(($('mpn')||{}).value||'').trim(),secret=/\$\$$/.test(nm0),nm=nm0.replace(/\$+$/,'').trim(),rn=($('mpr')||{}).value||'',cd=($('mpc')||{}).value||'',er=$('mpe');const say=t=>{if(er)er.textContent=t};
  if(nm.length<2)return say('Введи своё имя (хотя бы 2 буквы)');if(rn.trim().length<3)return say('Название комнаты — хотя бы 3 символа');if(cd.trim().length<4)return say('Код — хотя бы 4 символа');
  if(navigator.onLine===false)return say('📵 Нет интернета. Мультиплеер работает только онлайн.');
@@ -3673,15 +3676,15 @@ function mpConnect(mode){if(MP.st==='wait')return;const nm0=(($('mpn')||{}).valu
 function mpStart(room,mode){MP.room=room;MP.isHost=mode==='make';MP.st='on';MP.mem={};MP.gone={};MP.chat=[];MP.seen={};MP.tx={};MP.col=MPCOL[Math.floor(Math.random()*MPCOL.length)];
  mpInfo();mpSend(1);mpPub({t:'hi'});mpSys((mode==='make'?'🏠 Комната создана':'🚪 Ты вошёл в комнату')+' «'+room.n+'»');
  closeOv();banner(mode==='make'?'🏠 Комната «'+room.n+'» создана!':'👨‍👩‍👧 Ты в семье «'+room.n+'»!',mode==='make'?'скажи друзьям название и код':'родственники видят тебя в городе');mpBtn()}
-function mpInfo(){if(MP.room)mpRaw(MP.room.t+'/info',JSON.stringify({n:MP.room.n,ts:Date.now()}),true);MP.infoT=Date.now()}
+function mpInfo(){if(MP.room)mpRaw(MP.room.t+'/info',JSON.stringify({n:MP.room.n,ts:Date.now()}),true,1);MP.infoT=Date.now()}
 function mpDrop(){for(const id in MP.mem)mpAvDel(id);MP.mem={};mpCloseAll();MP.room=null;MP.st='off';mpBtn()}
 function mpLeave(){if(!MP.room)return;const alone=!Object.keys(MP.mem).length;mpPub({t:'bye'});if(alone)mpRaw(MP.room.t+'/info','',true);setTimeout(mpCloseAll,400);for(const id in MP.mem)mpAvDel(id);MP.mem={};MP.room=null;MP.st='off';mpBtn();pop('🚪 Ты вышел из комнаты');closeOv()}
-function mpPub(o){const R=MP.room||MP.pend;if(!R||!mpOk())return;o.id=MP.id;o.q=++MPH.seq;mpRaw(R.t+'/s',JSON.stringify(o))}
+function mpPub(o){const R=MP.room||MP.pend;if(!R||!mpOk())return;o.id=MP.id;o.q=++MPH.seq;o.bm=mpMask();mpRaw(R.t+'/s',JSON.stringify(o),false,!MP.room||o.t==='hi'||o.t==='bye'||o.t==='away'||MPH.allUntil>Date.now())}
 function mpAct(){if(st==='fly'||st==='fpause'||st==='fend')return'✈️ в полёте';if(CF||DOCK||SEQ)return'🚀 в космосе';if(st==='box')return'🥊 на ринге';if(CH)return'🌪 гонится за штормом';if(st==='build')return'🔧 собирает машину';if(st==='drive'||st==='dend'||st==='dpop')return'🚗 за рулём';if(st==='office'||st==='oend')return'💼 на работе';if(st==='pres')return'🎤 презентация';if(where)return'🏢 '+(BNAME[where]||'в здании');return'🚶 гуляет по городу'}
 function mpSend(force){if(!MP.room||!mpOk())return;const drv=D&&D.car,p=drv?D.car.position:pl.g.position,ry=drv?D.car.rotation.y:pl.g.rotation.y,vis=!HT&&!CH&&!CF&&!DOCK&&!SEQ&&!['fly','fpause','fend','pres','box','build','tlift','office','oend'].includes(st);
  const o={t:'st',h:MP.isHost?1:0,ts:Date.now(),n:MP.room.nick,c:MP.col,x:+p.x.toFixed(2),y:+p.y.toFixed(2),z:+p.z.toFixed(2),r:+ry.toFixed(2),v:vis?1:0,car:drv?1:0,w:where||'',a:S.age,b:S.bank,e:S.en,j:S.job?PN[S.job]||'':'',act:mpAct(),em:MPE.k&&tm-MPE.t0<MPE.dur?MPE.k:'',ea:MPE.k?+(tm-MPE.t0).toFixed(2):0};
- const k=JSON.stringify([o.x,o.z,o.r,o.v,o.car,o.w,o.b,o.e,o.a,o.j,o.act,o.em]);if(!force&&k===MP.last&&Date.now()-MP.sentAt<1000)return;MP.last=k;MP.sentAt=Date.now();mpPub(o)}
-setInterval(()=>{try{mpSend(0)}catch(e){}},160);
+ const k=JSON.stringify([o.x,o.z,o.r,o.v,o.car,o.w,o.b,o.e,o.a,o.j,o.act,o.em]);if(!force&&k===MP.last&&Date.now()-MP.sentAt<2000)return;if(!force&&Date.now()-MP.sentAt<190)return;MP.last=k;MP.sentAt=Date.now();mpPub(o)}
+setInterval(()=>{try{mpSend(0)}catch(e){}},200);
 let mpLost=0;setInterval(()=>{try{if(MP.room&&Date.now()-MP.infoT>30000)mpInfo();const now=Date.now();if(MP.room){if(mpOk())mpLost=0;else if(!mpLost)mpLost=now;else if(now-mpLost>4000&&!MP.warned){MP.warned=1;pop('📶 Связь пропала — переподключаюсь…')}if(mpOk()&&MP.warned){MP.warned=0;pop('✅ Связь восстановлена')}}for(const id in MP.mem)if(now-MP.mem[id].seen>(mpLost?120000:MP.mem[id].away?600000:60000)){MP.gone[id]=now;const n=MP.mem[id].n;mpAvDel(id);delete MP.mem[id];mpSys('👋 '+n+' вышел(а) из комнаты');mpBtn()}
  for(const k in MP.tx){const t=MP.tx[k];if(now-t.at>7000){S.bank+=t.amt;save();hud();delete MP.tx[k];pop('⚠️ Перевод не дошёл — '+t.amt+' 🪙 вернулись')}}}catch(e){}},250);
 function mpMsg(tp,m){const M=MP.mem[m.id];
@@ -3720,7 +3723,7 @@ function mpTick(dt){if(MPE.k){const t=tm-MPE.t0;if(t<MPE.dur)mpEmote(pl,MPE.k,t,
   if(onFoot){const o=A.o;o.g.position.set(A.x,A.y,A.z);o.g.rotation.y=A.r;o.g.scale.setScalar(.4+.6*Math.min(m.a||18,18)/18);if(sp>.4){anim(o,tm+A.ph,sp>6.5?'run':'walk');o.g.position.y+=A.y}else{for(const q of['lL','lR','kL','kR','aL','aR','eL','eR'])if(o[q])o[q].rotation.x=0;if(o.top)o.top.rotation.set(0,0,0);o.g.position.y=A.y}}
   if(inCar){A.car.position.set(A.x,A.y,A.z);A.car.rotation.y=A.r}
   if(m.em!==A.lastEm){A.lastEm=m.em;A.emT0=tm-(m.ea||0)}if(onFoot&&m.em)mpEmote(A.o,m.em,tm-A.emT0,A.y);
-  const stale=Date.now()-m.seen>5000||m.away,op=stale?.45:1;if(A.op!==op){A.op=op;for(const g2 of[A.o.g,A.car])g2.traverse(q=>{if(q.material)for(const mt of[].concat(q.material)){mt.transparent=op<1;mt.opacity=op}})}
+  const stale=Date.now()-m.seen>8000||m.away,op=stale?.45:1;if(A.op!==op){A.op=op;for(const g2 of[A.o.g,A.car])g2.traverse(q=>{if(q.material)for(const mt of[].concat(q.material)){mt.transparent=op<1;mt.opacity=op}})}
   const want=m.away?'💤 '+m.n+' · отошёл':stale?'📶 '+m.n+' · связь…':'👪 '+m.n;if(A.tagTxt!==want){A.tagTxt=want;A.tag.material.map=mpNameTex(want,stale?0x777777:(m.c||0xe84a5f));A.tag.material.needsUpdate=true}
   const hy=inCar?2.6:2.2*A.o.g.scale.y+.45;A.tag.visible=!!m.v;A.tag.position.set(A.x,A.y+hy,A.z);const d=cam.position.distanceTo(A.tag.position),sc2=Math.max(1,d/14);A.tag.scale.set(2.8*sc2,.7*sc2,1);
   if(A.bub){A.bubT-=dt;A.bub.visible=!!m.v;A.bub.position.set(A.x,A.y+hy+.8*sc2,A.z);A.bub.scale.set(3.4*sc2,1.06*sc2,1);if(A.bubT<=0){sc.remove(A.bub);A.bub=null}}}
@@ -4254,6 +4257,10 @@ function gmHid(id){return GM.on&&GM.k==='hide'&&GM.me&&GM.cfg.seek===MP.id&&id!=
 {const _dm=drawMM;drawMM=function(dt){_dm(dt);if(where||MM.style.display==='none')return;const tg=[];if(MPCALL.until>Date.now())tg.push([MPCALL.x,MPCALL.z,'#4fc3ff','📣']);if(GM.on&&GM.k==='race'&&GM.me&&!GM.done){const c=GM.route[GM.cp];tg.push([c[0],c[1],'#5ee07a','🏁'])}if(!tg.length)return;
  const v=mmView(),g=MMC,W=MM.width,C=W/2,k=C/75,cs=Math.cos(v.th),sn=Math.sin(v.th);for(const [x,z,col,ic] of tg){const dx=(x-v.px)*k,dz=(z-v.pz)*k;let q=[C+dx*cs-dz*sn,C+dx*sn+dz*cs];const ex=q[0]-C,ey=q[1]-C,dd=Math.hypot(ex,ey);if(dd>C-16)q=[C+ex/dd*(C-16),C+ey/dd*(C-16)];
   g.fillStyle=col;g.strokeStyle='#fff';g.lineWidth=3;g.beginPath();g.arc(q[0],q[1],13+Math.sin(tm*6)*2,0,7);g.fill();g.stroke();g.font='15px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(ic,q[0],q[1]+1)}}}
+
+// ===== VERSION LABEL =====
+const GAMEVER='beta 1.0';
+{const d=document.createElement('div');d.id='gver';d.textContent=GAMEVER;d.style.cssText='position:fixed;left:calc(env(safe-area-inset-left,0px) + 8px);bottom:calc(env(safe-area-inset-bottom,0px) + 3px);z-index:3;font:700 10px "Trebuchet MS",sans-serif;color:rgba(120,120,120,.85);text-shadow:0 1px 0 rgba(255,255,255,.5);pointer-events:none;letter-spacing:.5px';(document.body||document.documentElement).appendChild(d)}
 
 // ===== MINIMAP + CITY MAP =====
 const MMS=2,MMI=document.createElement('canvas');MMI.width=MMI.height=MAPR*2*MMS;
