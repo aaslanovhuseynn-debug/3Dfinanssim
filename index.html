@@ -3665,12 +3665,12 @@ function mpConnect(mode){if(MP.st==='wait')return;const nm0=(($('mpn')||{}).valu
  const t0=Date.now();let hiT=0;const iv=setInterval(()=>{const el=Date.now()-t0,ok=mpOk();
   if(ok&&Date.now()-hiT>1200){hiT=Date.now();mpPub({t:'hi'})}
   if(ok)say('⏳ '+(mode==='join'?'Ищу комнату':'Создаю комнату')+'… (серверов: '+MPH.conns.filter(C=>C.ok).length+'/'+MPH.conns.length+')');
-  const found=room.seen||room.info;
+  const found=room.seen;
   if((mode==='join'&&found&&el>1500)||(mode==='make'&&ok&&el>3500)||(mode==='join'&&ok&&el>7000)||el>12000){clearInterval(iv);MP.pend=null;MP.st='off';
    if(!ok){mpCloseAll();return say('📵 Не удалось подключиться к серверу. Проверь интернет и попробуй ещё раз (лучше открыть игру в обычном браузере — Chrome или Safari).')}
    if(mode==='join'&&!found){mpCloseAll();return say('❌ Комната не найдена. Проверь название и код — и что создатель комнаты сейчас в игре.')}
    const m2=mode==='make'&&found?'join':mode;if(m2!==mode)pop('Такая комната уже есть — ты вошёл в неё');mpStart(room,m2);if(secret)setTimeout(jackpot,1400)}},300)}
-function mpStart(room,mode){MP.room=room;MP.st='on';MP.mem={};MP.chat=[];MP.seen={};MP.tx={};MP.col=MPCOL[Math.floor(Math.random()*MPCOL.length)];
+function mpStart(room,mode){MP.room=room;MP.isHost=mode==='make';MP.st='on';MP.mem={};MP.gone={};MP.chat=[];MP.seen={};MP.tx={};MP.col=MPCOL[Math.floor(Math.random()*MPCOL.length)];
  mpInfo();mpSend(1);mpPub({t:'hi'});mpSys((mode==='make'?'🏠 Комната создана':'🚪 Ты вошёл в комнату')+' «'+room.n+'»');
  closeOv();banner(mode==='make'?'🏠 Комната «'+room.n+'» создана!':'👨‍👩‍👧 Ты в семье «'+room.n+'»!',mode==='make'?'скажи друзьям название и код':'родственники видят тебя в городе');mpBtn()}
 function mpInfo(){if(MP.room)mpRaw(MP.room.t+'/info',JSON.stringify({n:MP.room.n,ts:Date.now()}),true);MP.infoT=Date.now()}
@@ -3678,15 +3678,15 @@ function mpDrop(){for(const id in MP.mem)mpAvDel(id);MP.mem={};mpCloseAll();MP.r
 function mpLeave(){if(!MP.room)return;const alone=!Object.keys(MP.mem).length;mpPub({t:'bye'});if(alone)mpRaw(MP.room.t+'/info','',true);setTimeout(mpCloseAll,400);for(const id in MP.mem)mpAvDel(id);MP.mem={};MP.room=null;MP.st='off';mpBtn();pop('🚪 Ты вышел из комнаты');closeOv()}
 function mpPub(o){const R=MP.room||MP.pend;if(!R||!mpOk())return;o.id=MP.id;o.q=++MPH.seq;mpRaw(R.t+'/s',JSON.stringify(o))}
 function mpAct(){if(st==='fly'||st==='fpause'||st==='fend')return'✈️ в полёте';if(CF||DOCK||SEQ)return'🚀 в космосе';if(st==='box')return'🥊 на ринге';if(CH)return'🌪 гонится за штормом';if(st==='build')return'🔧 собирает машину';if(st==='drive'||st==='dend'||st==='dpop')return'🚗 за рулём';if(st==='office'||st==='oend')return'💼 на работе';if(st==='pres')return'🎤 презентация';if(where)return'🏢 '+(BNAME[where]||'в здании');return'🚶 гуляет по городу'}
-function mpSend(force){if(!MP.room||!mpOk())return;const drv=D&&D.car,p=drv?D.car.position:pl.g.position,ry=drv?D.car.rotation.y:pl.g.rotation.y,vis=['play','menu','mis','fjob','drive','dend','dpop','act','story','intro'].includes(st)&&!HT;
- const o={t:'st',ts:Date.now(),n:MP.room.nick,c:MP.col,x:+p.x.toFixed(2),y:+p.y.toFixed(2),z:+p.z.toFixed(2),r:+ry.toFixed(2),v:vis?1:0,car:drv?1:0,w:where||'',a:S.age,b:S.bank,e:S.en,j:S.job?PN[S.job]||'':'',act:mpAct()};
- const k=JSON.stringify([o.x,o.z,o.r,o.v,o.car,o.w,o.b,o.e,o.a,o.j,o.act]);if(!force&&k===MP.last&&Date.now()-MP.sentAt<2000)return;MP.last=k;MP.sentAt=Date.now();mpPub(o)}
+function mpSend(force){if(!MP.room||!mpOk())return;const drv=D&&D.car,p=drv?D.car.position:pl.g.position,ry=drv?D.car.rotation.y:pl.g.rotation.y,vis=!HT&&!CH&&!CF&&!DOCK&&!SEQ&&!['fly','fpause','fend','pres','box','build','tlift','office','oend'].includes(st);
+ const o={t:'st',h:MP.isHost?1:0,ts:Date.now(),n:MP.room.nick,c:MP.col,x:+p.x.toFixed(2),y:+p.y.toFixed(2),z:+p.z.toFixed(2),r:+ry.toFixed(2),v:vis?1:0,car:drv?1:0,w:where||'',a:S.age,b:S.bank,e:S.en,j:S.job?PN[S.job]||'':'',act:mpAct(),em:MPE.k&&tm-MPE.t0<MPE.dur?MPE.k:'',ea:MPE.k?+(tm-MPE.t0).toFixed(2):0};
+ const k=JSON.stringify([o.x,o.z,o.r,o.v,o.car,o.w,o.b,o.e,o.a,o.j,o.act,o.em]);if(!force&&k===MP.last&&Date.now()-MP.sentAt<1000)return;MP.last=k;MP.sentAt=Date.now();mpPub(o)}
 setInterval(()=>{try{mpSend(0)}catch(e){}},160);
-let mpLost=0;setInterval(()=>{try{if(MP.room&&Date.now()-MP.infoT>30000)mpInfo();const now=Date.now();if(MP.room){if(mpOk())mpLost=0;else if(!mpLost)mpLost=now;else if(now-mpLost>4000&&!MP.warned){MP.warned=1;pop('📶 Связь пропала — переподключаюсь…')}if(mpOk()&&MP.warned){MP.warned=0;pop('✅ Связь восстановлена')}}for(const id in MP.mem)if(now-MP.mem[id].seen>(mpLost?60000:15000)){const n=MP.mem[id].n;mpAvDel(id);delete MP.mem[id];mpSys('👋 '+n+' вышел(а) из комнаты');mpBtn()}
+let mpLost=0;setInterval(()=>{try{if(MP.room&&Date.now()-MP.infoT>30000)mpInfo();const now=Date.now();if(MP.room){if(mpOk())mpLost=0;else if(!mpLost)mpLost=now;else if(now-mpLost>4000&&!MP.warned){MP.warned=1;pop('📶 Связь пропала — переподключаюсь…')}if(mpOk()&&MP.warned){MP.warned=0;pop('✅ Связь восстановлена')}}for(const id in MP.mem)if(now-MP.mem[id].seen>(mpLost?120000:MP.mem[id].away?600000:60000)){MP.gone[id]=now;const n=MP.mem[id].n;mpAvDel(id);delete MP.mem[id];mpSys('👋 '+n+' вышел(а) из комнаты');mpBtn()}
  for(const k in MP.tx){const t=MP.tx[k];if(now-t.at>7000){S.bank+=t.amt;save();hud();delete MP.tx[k];pop('⚠️ Перевод не дошёл — '+t.amt+' 🪙 вернулись')}}}catch(e){}},250);
 function mpMsg(tp,m){const M=MP.mem[m.id];
- if(m.t==='st'){if(!M){MP.mem[m.id]={n:m.n,seen:Date.now()};mpSys('🙋 '+m.n+' в семье!');pop('👨‍👩‍👧 '+m.n+' зашёл(ла) в комнату');sfxChime();mpSend(1);mpBtn()}Object.assign(MP.mem[m.id],m,{seen:Date.now()});mpAv(m.id)}
- else if(m.t==='bye'){if(M){mpAvDel(m.id);delete MP.mem[m.id];mpSys('👋 '+M.n+' вышел(а) из комнаты');pop('👋 '+M.n+' вышел(а)');mpBtn()}}
+ if(m.t==='st'||m.t==='away'){if(!M){if(m.t==='away')return;MP.mem[m.id]={n:m.n,seen:Date.now()};const back=MP.gone[m.id]&&Date.now()-MP.gone[m.id]<600000;if(!back){mpSys('🙋 '+m.n+' в семье!');pop('👨‍👩‍👧 '+m.n+' зашёл(ла) в комнату');sfxChime()}mpSend(1);mpBtn()}const MM=MP.mem[m.id];if(m.t==='away'){MM.away=1;MM.seen=Date.now();return}MM.away=0;Object.assign(MM,m,{seen:Date.now()});mpAv(m.id)}
+ else if(m.t==='bye'){if(M){MP.gone[m.id]=0;mpAvDel(m.id);delete MP.mem[m.id];mpSys('👋 '+M.n+' вышел(а) из комнаты');pop('👋 '+M.n+' вышел(а)');mpBtn()}}
  else if(m.t==='chat'){const n=M?M.n:'?',t=String(m.m||'').slice(0,80);mpSys('💬 '+n+': '+t);pop('💬 '+n+': '+t);mpBubble(m.id,t);tone(988,0,.06,.025);tone(1319,.07,.08,.025)}
  else if(m.t==='tx'&&m.to===MP.id){mpPub({t:'txok',k:m.k});if(MP.seen[m.k])return;MP.seen[m.k]=1;const a=Math.max(0,Math.min(100000,m.amt|0)),note=String(m.m||'').slice(0,40);S.bank+=a;save();hud();const n=M?M.n:'Родственник';mpSys('💸 '+n+' перевёл(а) тебе '+a+' 🪙'+(note?' — «'+note+'»':''));banner('💸 '+mpEsc(n)+' перевёл(а) тебе '+a+' 🪙',note?'«'+mpEsc(note)+'»':'семейная поддержка')}
  else if(m.t==='txok'){if(MP.tx[m.k]){const t=MP.tx[m.k];delete MP.tx[m.k];pop('✅ '+t.n+' получил(а) '+t.amt+' 🪙')}}}
@@ -3703,7 +3703,7 @@ function mpAv(id){const m=MP.mem[id];let A=MPAV[id];if(!A){const r4=a=>a[Math.fl
   const tag=new THREE.Sprite(new THREE.SpriteMaterial({map:mpNameTex('👪 '+m.n,m.c||0xe84a5f),depthTest:false,fog:false,transparent:true}));tag.renderOrder=5;sc.add(tag);
   const car=new THREE.Group(),body=new THREE.Mesh(new THREE.BoxGeometry(1.9,.7,4.1),PM(m.c||0xe84a5f,80));body.position.y=.65;const cab=new THREE.Mesh(new THREE.BoxGeometry(1.6,.6,2),PM(0x22303c,90));cab.position.set(0,1.25,-.2);car.add(body,cab);
   for(const [x,z] of[[-.9,1.3],[.9,1.3],[-.9,-1.3],[.9,-1.3]]){const w=new THREE.Mesh(new THREE.CylinderGeometry(.38,.38,.3,12),LM(0x1a1a1a));w.rotation.z=Math.PI/2;w.position.set(x,.38,z);car.add(w)}car.visible=false;sc.add(car);
-  A=MPAV[id]={o,tag,car,x:m.x,y:m.y,z:m.z,r:m.r,bub:null,bubT:0,ph:Math.random()*9,buf:[]}}
+  A=MPAV[id]={tagTxt:'👪 '+m.n,o,tag,car,x:m.x,y:m.y,z:m.z,r:m.r,bub:null,bubT:0,ph:Math.random()*9,buf:[]}}
  const now=Date.now(),ts=m.ts||now,est=now-ts;A.off=A.off===undefined?est:Math.min(est,A.off+Math.max(0,now-(A.lastRx||now))*.02);const gap=A.lastRx?now-A.lastRx:100;A.gap=A.gap===undefined?100:A.gap+(Math.min(gap,1500)-A.gap)*.1;A.jit=(A.jit||0)+(Math.abs(gap-A.gap)-(A.jit||0))*.1;A.lastRx=now;
  const L=A.buf[A.buf.length-1],smp={t:ts+A.off,x:m.x,y:m.y,z:m.z,r:m.r};if(L&&smp.t<=L.t)return;if(!L||Math.hypot(m.x-L.x,m.z-L.z)>30){A.buf=[smp];A.x=m.x;A.y=m.y;A.z=m.z;A.r=m.r}else{A.buf.push(smp);if(A.buf.length>40)A.buf.shift()}}
 
@@ -3714,11 +3714,14 @@ function mpAvDel(id){const A=MPAV[id];if(!A)return;sc.remove(A.o.g);sc.remove(A.
 function mpBubble(id,txt){const A=(id&&MPAV[id])||(id?null:MPSELF);if(!A)return;const c=document.createElement('canvas');c.width=512;c.height=160;const g=c.getContext('2d');g.font='bold 40px "Trebuchet MS",sans-serif';const t=txt.length>24?txt.slice(0,23)+'…':txt,tw=Math.min(500,g.measureText(t).width+50),x0=(512-tw)/2;
  g.fillStyle='#fff';rr(g,x0,10,tw,100,30);g.fill();g.beginPath();g.moveTo(236,108);g.lineTo(256,150);g.lineTo(276,108);g.fill();g.fillStyle='#17324a';g.textAlign='center';g.textBaseline='middle';g.fillText(t,256,60);
  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false,fog:false,transparent:true}));s.scale.set(4,1.25,1);s.renderOrder=6;sc.add(s);if(A.bub)sc.remove(A.bub);A.bub=s;A.bubT=5}
-function mpTick(dt){if(!MP.room&&!MPSELF.bub)return;
+function mpTick(dt){if(MPE.k){const t=tm-MPE.t0;if(t<MPE.dur)mpEmote(pl,MPE.k,t,pl.g.position.y);else MPE.k=''}if(!MP.room&&!MPSELF.bub)return;
  for(const id in MPAV){const A=MPAV[id],m=MP.mem[id];if(!m)continue;const q=mpSample(A);if(!q)continue;const ox=A.x,oz=A.z,k=Math.min(1,dt*20);A.x+=(q.x-A.x)*k;A.y+=(q.y-A.y)*k;A.z+=(q.z-A.z)*k;let dr=q.r-A.r;dr=Math.atan2(Math.sin(dr),Math.cos(dr));A.r+=dr*Math.min(1,dt*12);A.sp=(A.sp||0)+(Math.hypot(A.x-ox,A.z-oz)/Math.max(dt,.001)-(A.sp||0))*Math.min(1,dt*6);
   const sp=A.sp,onFoot=m.v&&!m.car,inCar=m.v&&m.car;A.o.g.visible=!!onFoot;A.car.visible=!!inCar;
   if(onFoot){const o=A.o;o.g.position.set(A.x,A.y,A.z);o.g.rotation.y=A.r;o.g.scale.setScalar(.4+.6*Math.min(m.a||18,18)/18);if(sp>.4){anim(o,tm+A.ph,sp>6.5?'run':'walk');o.g.position.y+=A.y}else{for(const q of['lL','lR','kL','kR','aL','aR','eL','eR'])if(o[q])o[q].rotation.x=0;if(o.top)o.top.rotation.set(0,0,0);o.g.position.y=A.y}}
   if(inCar){A.car.position.set(A.x,A.y,A.z);A.car.rotation.y=A.r}
+  if(m.em!==A.lastEm){A.lastEm=m.em;A.emT0=tm-(m.ea||0)}if(onFoot&&m.em)mpEmote(A.o,m.em,tm-A.emT0,A.y);
+  const stale=Date.now()-m.seen>5000||m.away,op=stale?.45:1;if(A.op!==op){A.op=op;for(const g2 of[A.o.g,A.car])g2.traverse(q=>{if(q.material)for(const mt of[].concat(q.material)){mt.transparent=op<1;mt.opacity=op}})}
+  const want=m.away?'💤 '+m.n+' · отошёл':stale?'📶 '+m.n+' · связь…':'👪 '+m.n;if(A.tagTxt!==want){A.tagTxt=want;A.tag.material.map=mpNameTex(want,stale?0x777777:(m.c||0xe84a5f));A.tag.material.needsUpdate=true}
   const hy=inCar?2.6:2.2*A.o.g.scale.y+.45;A.tag.visible=!!m.v;A.tag.position.set(A.x,A.y+hy,A.z);const d=cam.position.distanceTo(A.tag.position),sc2=Math.max(1,d/14);A.tag.scale.set(2.8*sc2,.7*sc2,1);
   if(A.bub){A.bubT-=dt;A.bub.visible=!!m.v;A.bub.position.set(A.x,A.y+hy+.8*sc2,A.z);A.bub.scale.set(3.4*sc2,1.06*sc2,1);if(A.bubT<=0){sc.remove(A.bub);A.bub=null}}}
  if(MPSELF.bub){MPSELF.bubT-=dt;const p=D&&D.car?D.car.position:pl.g.position,d=cam.position.distanceTo(p),sc2=Math.max(1,d/14);MPSELF.bub.position.set(p.x,p.y+2.2*pl.g.scale.y+.9,p.z);MPSELF.bub.scale.set(3.4*sc2,1.06*sc2,1);if(MPSELF.bubT<=0){sc.remove(MPSELF.bub);MPSELF.bub=null}}}
@@ -3741,7 +3744,7 @@ function mpFam(){ov(`<h2>👨‍👩‍👧 Семья «${mpEsc(MP.room.n)}»</
  <h3>💬 Семейный чат</h3><div id="mplog" style="max-height:110px;overflow-y:auto;font-size:13px;line-height:1.4;background:rgba(127,127,127,.1);border-radius:12px;padding:6px 9px"></div>
  <div style="display:flex;gap:6px;align-items:center"><input id="mpm" ${MPIN.replace('onkeydown="event.stopPropagation()"',`onkeydown="event.stopPropagation();if(event.key==='Enter')mpChat(this.value)"`)} maxlength="80" placeholder="Сообщение семье"><button class="big" style="width:auto;margin:0;min-height:44px;padding:0 14px" onclick="mpChat($('mpm').value)">➤</button></div>
  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${['👋 Привет!','❤️','😂','👍','Иди сюда!','Я на работе 💼','Давай копить! 💰'].map(t=>`<button class="big alt" style="width:auto;min-height:36px;margin:0;padding:0 10px;font-size:14px" onclick="mpChat('${t}')">${t}</button>`).join('')}</div>
- <button class="big alt" onclick="mpLeave()">🚪 Выйти из комнаты</button><button class="big" onclick="closeOv()">Играть</button>`,'mid');mpFamRender();mpLog()}
+ ${btn('💬 Быстрые слова','«Привет!», «Иди в школу!» и другие',"quickMenu()")}${btn('🎮 Мини-игры','догонялки, прятки, гонка, монеты, «Тише едешь»',"gmMenu()")}${btn('🙌 Эмоции','помахать, станцевать, похлопать — семья увидит',"emoteMenu()")}<button class="big alt" onclick="mpLeave()">🚪 Выйти из комнаты</button><button class="big" onclick="closeOv()">Играть</button>`,'mid');mpFamRender();mpLog()}
 function mpFamRender(){const F=$('mpfam');if(!F||!MP.room)return;const me={n:MP.room.nick+' (ты)',a:S.age,b:S.bank,e:S.en,j:S.job?PN[S.job]:'',act:mpAct(),c:MP.col,self:1};const L=[me,...Object.entries(MP.mem).map(([id,m])=>Object.assign({id},m))];
  const keep={};F.querySelectorAll('input').forEach(i=>keep[i.id]=i.value);const p=pl.g.position;
  F.innerHTML=L.map(m=>{const d=m.self||!m.v?'':' · '+Math.round(Math.hypot((m.x||0)-p.x,(m.z||0)-p.z))+' м от тебя';return`<div style="border-left:6px solid #${new THREE.Color(m.c||0xe84a5f).getHexString()};background:rgba(127,127,127,.1);border-radius:12px;padding:7px 10px;margin:6px 0">
@@ -3751,6 +3754,23 @@ function mpFamRender(){const F=$('mpfam');if(!F||!MP.room)return;const me={n:MP.
 setInterval(()=>{if(MP.room&&$('ov').style.display==='flex'&&$('mpfam')&&!(document.activeElement&&document.activeElement.tagName==='INPUT'))mpFamRender()},1500);
 addEventListener('beforeunload',()=>{if(MP.room){try{mpPub({t:'bye'})}catch(e){}}});
 {const st2=document.createElement('style');st2.textContent='#mpfam .big,#mpfam .big::after{animation:none!important;opacity:1!important}';(document.head||document.body).appendChild(st2)}
+
+// ---------- away when the phone is locked / app switched ----------
+document.addEventListener('visibilitychange',()=>{if(!MP.room)return;if(document.hidden)mpPub({t:'away',n:MP.room.nick});else{mpSend(1);mpPub({t:'hi'})}});
+// ---------- emotes (visible to the family) ----------
+const MPE={k:'',t0:0,dur:0},EMD={wave:2.4,dance:4,jump:1.6,clap:2.4,bow:2};
+function emote(k){if(!(st==='play'||st==='menu'))return;MPE.k=k;MPE.t0=tm;MPE.dur=EMD[k]||2;mpSend(1);closeOv()}
+function mpEmote(o,k,t,y0){if(!k)return;const s2=Math.sin(t*8);
+ if(k==='wave'){o.aR.rotation.x=-2.9;o.aR.rotation.z=.35+s2*.45;o.eR.rotation.x=-.3}
+ else if(k==='dance'){o.top.rotation.y=Math.sin(t*6)*.35;o.aL.rotation.x=-1.6+Math.sin(t*6)*.9;o.aR.rotation.x=-1.6-Math.sin(t*6)*.9;o.aL.rotation.z=-.4;o.aR.rotation.z=.4;o.lL.rotation.x=Math.max(0,Math.sin(t*6))*.5;o.lR.rotation.x=Math.max(0,-Math.sin(t*6))*.5;o.g.position.y=y0+Math.abs(Math.sin(t*6))*.12}
+ else if(k==='jump'){const ph=(t*1.9)%1;o.g.position.y=y0+Math.max(0,Math.sin(ph*Math.PI))*.9;o.aL.rotation.x=o.aR.rotation.x=-2.8;o.aL.rotation.z=-.3;o.aR.rotation.z=.3;o.kL.rotation.x=o.kR.rotation.x=-.6*Math.max(0,Math.sin(ph*Math.PI))}
+ else if(k==='clap'){o.aL.rotation.x=o.aR.rotation.x=-1.3;o.aL.rotation.z=.55+Math.max(0,s2)*.35;o.aR.rotation.z=-.55-Math.max(0,s2)*.35;o.eL.rotation.x=o.eR.rotation.x=-.4}
+ else if(k==='bow'){const b=Math.sin(Math.min(1,t/.6)*Math.PI/2)*(t>1.4?Math.max(0,1-(t-1.4)/.6):1);o.top.rotation.x=.75*b;o.aL.rotation.x=o.aR.rotation.x=.2*b}}
+function emoteMenu(){st='menu';ov('<h2>🙌 Эмоции</h2><p style="font-size:13px">Родственники в комнате увидят твой жест.</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'+[['wave','👋 Помахать'],['dance','💃 Танцевать'],['jump','🎉 Прыгать от радости'],['clap','👏 Хлопать'],['bow','🙇 Поклониться']].map(([k,n])=>`<button class="big" style="margin:0" onclick="emote('${k}')">${n}</button>`).join('')+'</div><button class="big alt" onclick="closeOv()">Закрыть</button>','mid')}
+// ---------- family on the minimap + "find" ----------
+{const _dm=drawMM;drawMM=function(dt){_dm(dt);if(!MP.room||where||MM.style.display==='none')return;const v=mmView(),g=MMC,W=MM.width,C=W/2,k=C/75,cs=Math.cos(v.th),sn=Math.sin(v.th);
+ for(const id in MPAV){const A=MPAV[id],m=MP.mem[id];if(!m||!m.v||m.w)continue;if(typeof gmHid==='function'&&gmHid(id))continue;const dx=(A.x-v.px)*k,dz=(A.z-v.pz)*k;let q=[C+dx*cs-dz*sn,C+dx*sn+dz*cs];const ex=q[0]-C,ey=q[1]-C,dd=Math.hypot(ex,ey);if(dd>C-14)q=[C+ex/dd*(C-14),C+ey/dd*(C-14)];
+  g.fillStyle='#'+new THREE.Color(m.c||0xe84a5f).getHexString();g.strokeStyle='#fff';g.lineWidth=3;g.beginPath();g.arc(q[0],q[1],9+Math.sin(tm*5)*1.5,0,7);g.fill();g.stroke();g.fillStyle='#fff';g.font='bold 11px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText((m.n||'?')[0].toUpperCase(),q[0],q[1]+.5)}}}
 
 // ===== COMFORT PATCH (v23): goal hints, how-to-play & job guide, non-blocking calls, softer car hits, adaptive quality =====
 // ---------- jobs: where to get hired ----------
@@ -3766,7 +3786,7 @@ function goalNow(){const a=S.age;if(a<5)return null;
  if(S.prof)return['🎓 Учись на «'+PN[S.prof]+'»: курс '+Math.min(S.cr+1,3)+'/3 — 2 лекции и экзамен','uni'];
  return['🎓 Выбери профессию в университете (деканат) или устройся без диплома','uni']}
 const GOAL=(()=>{const d=document.createElement('div');d.id='goal';d.style.cssText='position:fixed;left:calc(env(safe-area-inset-left,0px) + 10px);top:calc(env(safe-area-inset-top,0px) + 82px);max-width:min(46vw,360px);z-index:2;display:none;padding:6px 11px;border-radius:14px;background:rgba(255,255,255,.93);border:2px solid #ffd23f;color:#17324a;font:800 12.5px "Trebuchet MS",sans-serif;line-height:1.25;box-shadow:0 4px 14px rgba(0,0,0,.18);pointer-events:auto;cursor:pointer;touch-action:manipulation';d.onclick=()=>{if(st==='play')jobGuide()};(document.body||document.documentElement).appendChild(d);return d})();
-let goalTxt='';setInterval(()=>{try{const g=st==='play'&&!where&&S.goalOff!==1?goalNow():null;if(!g){GOAL.style.display='none';return}GOAL.style.display='block';const t='🎯 '+g[0]+' <span style="opacity:.6">ⓘ</span>';if(t!==goalTxt){goalTxt=t;GOAL.innerHTML=t;GOAL.animate&&GOAL.animate([{transform:'scale(1.08)'},{transform:'scale(1)'}],{duration:400})}}catch(e){}},700);
+let goalTxt='';setInterval(()=>{try{const g=st==='play'&&!where&&S.goalOff!==1&&!(GM&&GM.on)?goalNow():null;if(!g){GOAL.style.display='none';return}GOAL.style.display='block';const t='🎯 '+g[0]+' <span style="opacity:.6">ⓘ</span>';if(t!==goalTxt){goalTxt=t;GOAL.innerHTML=t;GOAL.animate&&GOAL.animate([{transform:'scale(1.08)'},{transform:'scale(1)'}],{duration:400})}}catch(e){}},700);
 function jobGuide(){st='menu';const all=['courier','cook','cashier','taxi','office','teacher','doctor','fire','police','pilot','stew','fincon'].filter(k=>PN[k]);
  const noDip=k=>k==='courier'||k==='cook'||k==='cashier';const d=myDips();
  ov(`<h2>💼 Как устроиться на работу</h2>
@@ -4066,6 +4086,175 @@ function botFace(g,prompt,seed){let s0=seed*9301+49297;const rn=()=>{s0=(s0*9301
  if(mood==='sleep'){g.fillStyle='#2a5ad8';g.font='bold 12px sans-serif';g.fillText('z',160,36);g.font='bold 9px sans-serif';g.fillText('z',168,28)}
  return tags}
 
+// ===== FAMILY QUICK PHRASES + CALLS + MINI-GAMES (v26) =====
+let GSPD=0;
+const ARC={x:-30,z:90};
+// ---------- helpers ----------
+function gmNm(id){return id===MP.id?(MP.room?MP.room.nick:'Я'):(MP.mem[id]?MP.mem[id].n:'Игрок')}
+function gmSend(o){const c=Object.assign({},o);mpPub(o);c.id=MP.id;gmMsg(c)}
+function gmHostId(){if(!MP.room)return null;const ids=[MP.id,...Object.keys(MP.mem)],cr=ids.filter(id=>id===MP.id?MP.isHost:MP.mem[id]&&MP.mem[id].h);return(cr.length?cr:ids).sort()[0]}
+function gmAmHost(){return!!MP.room&&gmHostId()===MP.id}
+function gmFree(){return(st==='play'||st==='menu')&&!D&&!HT&&!CH&&!CF&&!DOCK&&!SEQ&&!BX&&!BLDM&&!MIS&&!PRES&&!INTRO&&S.age>=5}
+function gmPanel(id,css){const d=document.createElement('div');d.id=id;d.style.cssText='position:fixed;z-index:9;display:none;font-family:"Trebuchet MS",sans-serif;color:#fff;pointer-events:auto;'+css;(document.body||document.documentElement).appendChild(d);return d}
+const GVP=gmPanel('gvp','left:50%;top:calc(env(safe-area-inset-top,0px) + 54px);transform:translateX(-50%);width:min(92vw,400px);padding:10px 14px;border-radius:20px;background:rgba(20,28,48,.95);box-shadow:0 10px 30px rgba(0,0,0,.45);border:2px solid #ffd23f');
+const GHUD=gmPanel('ghud','left:50%;top:calc(env(safe-area-inset-top,0px) + 50px);transform:translateX(-50%);max-width:min(92vw,520px);padding:6px 14px;border-radius:16px;background:rgba(15,22,40,.86);font-weight:800;font-size:14px;text-align:center;pointer-events:none;box-shadow:0 6px 18px rgba(0,0,0,.35);z-index:7');
+const GBIG=gmPanel('gbig','inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;pointer-events:none;z-index:8;text-shadow:0 4px 18px rgba(0,0,0,.7)');
+const GSIG=gmPanel('gsig','right:calc(env(safe-area-inset-right,0px) + 14px);top:calc(env(safe-area-inset-top,0px) + 96px);width:86px;height:86px;border-radius:50%;border:5px solid #fff;pointer-events:none;z-index:7;box-shadow:0 0 30px rgba(0,0,0,.4);transition:background .15s');
+function gmBig(t,sub,col){GBIG.innerHTML=`<div style="font:900 clamp(60px,15vw,130px) 'Trebuchet MS';color:${col||'#ffd23f'};animation:bdn 1s cubic-bezier(.2,.9,.3,1.3) both">${t}</div>${sub?`<div style="font:900 clamp(16px,3.4vw,26px) 'Trebuchet MS'">${sub}</div>`:''}`;GBIG.style.display='flex';clearTimeout(gmBig.t);gmBig.t=setTimeout(()=>GBIG.style.display='none',1100)}
+function txtSprite(txt,bg,fg){const c=document.createElement('canvas');c.width=512;c.height=128;const g=c.getContext('2d');g.font='bold 54px "Trebuchet MS",sans-serif';const tw=Math.min(500,g.measureText(txt).width+60),x0=(512-tw)/2;g.fillStyle=bg;rr(g,x0,14,tw,100,48);g.fill();g.strokeStyle='#fff';g.lineWidth=6;g.stroke();g.fillStyle=fg||'#fff';g.textAlign='center';g.textBaseline='middle';g.fillText(txt,256,66);
+ const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false,fog:false,transparent:true}));s.renderOrder=7;s.scale.set(3.2,.8,1);sc.add(s);return s}
+function gmPosOf(id){if(id===MP.id)return pl.g.position;const A=MPAV[id];return A?{x:A.x,y:A.y,z:A.z}:null}
+// ---------- beacons (calls + race checkpoints) ----------
+function beacon(x,z,col,life){const g=new THREE.Group(),m=new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.35,depthWrite:false,fog:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide});
+ const c=new THREE.Mesh(new THREE.CylinderGeometry(1.3,1.3,70,20,1,true),m);c.position.y=35;g.add(c);const r=new THREE.Mesh(new THREE.RingGeometry(2.2,3,32),m.clone());r.rotation.x=-Math.PI/2;r.position.y=.12;g.add(r);g.position.set(x,0,z);sc.add(g);g.userData={t:0,life:life||60,m,r};BEAC.push(g);return g}
+const BEAC=[];function beacTick(dt){for(let i=BEAC.length-1;i>=0;i--){const b=BEAC[i],u=b.userData;u.t+=dt;if(u.t>u.life){sc.remove(b);BEAC.splice(i,1);continue}const k=u.t>u.life-2?(u.life-u.t)/2:1;u.m.opacity=(.25+.12*Math.sin(u.t*4))*k;u.r.scale.setScalar(1+((u.t*.8)%1)*.6);u.r.material.opacity=.6*(1-((u.t*.8)%1))*k}}
+// ---------- quick phrases & calls ----------
+const QPH=['Привет! 👋','Как дела?','Что делаешь?','Пойдём гулять!','Подожди меня!','Я сейчас приду!','Где ты?','Давай играть! 🎮','Спасибо! ❤️','Молодец! 👍','Ха-ха 😂','Ура! 🎉','Давай копить! 💰','Я на работе 💼','Пока! 👋'];
+const QCALL=[['school','🏫','Иди в школу!'],['uni','🎓','Иди в университет!'],['home','🏠','Иди домой!'],['bank','🏦','Иди в банк!'],['hosp','🏥','Иди в больницу!'],['mall','🛍️','Иди в торговый центр!'],['air','✈️','Иди в аэропорт!'],['boxc','🥊','Иди в боксёрский клуб!'],['space','🚀','Иди в космический центр!'],['storm','🌪','Иди в НИИ «Шторм»!'],['mon','🗽','Иди к памятнику!'],['me','📍','Иди ко мне!']];
+const QBTN=(()=>{const b=document.createElement('span');b.className='pill';b.id='qwb';b.textContent='💬';b.onclick=()=>{if(st==='play'||st==='menu')quickMenu()};b.style.cssText='pointer-events:auto;cursor:pointer;touch-action:manipulation;display:none';const m=$('mpb');if(m&&m.parentNode)m.parentNode.insertBefore(b,m.nextSibling);return b})();
+setInterval(()=>{QBTN.style.display=MP.room?'':'none'},500);
+function quickMenu(tab){st='menu';tab=tab||'say';const T=(t,n)=>`<button class="big${tab===t?'':' alt'}" style="flex:1;min-height:40px;margin:0" onclick="quickMenu('${t}')">${n}</button>`;
+ const body=tab==='say'?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">${QPH.map((p,i)=>`<button class="big alt" style="margin:0;min-height:42px;font-size:15px" onclick="quickSay(${i})">${p}</button>`).join('')}</div>`
+  :`<p style="font-size:13px;margin:4px 0">Родственники увидят сообщение и световой столб над местом — его видно издалека и на мини-карте.</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">${QCALL.map((c,i)=>`<button class="big alt" style="margin:0;min-height:42px;font-size:14.5px" onclick="quickCall(${i})">${c[1]} ${c[2]}</button>`).join('')}</div>`;
+ ov(`<h2>💬 Быстрые слова</h2><div style="display:flex;gap:6px;margin:4px 0 8px">${T('say','💬 Фразы')}${T('call','📣 Позвать')}</div>${body}<button class="big alt" onclick="closeOv()">Закрыть</button>`,'mid')}
+function quickSay(i){mpChat(QPH[i]);closeOv()}
+function callSpot(k){if(k==='me')return{x:+pl.g.position.x.toFixed(1),z:+pl.g.position.z.toFixed(1),n:'ко мне'};if(k==='mon')return{x:-30,z:83,n:'Памятник Учителю'};const z=ZB(k);return z?{x:z.ex,z:z.ez+z.dir*2,n:z.n}:null}
+function quickCall(i){if(!MP.room)return;const c=QCALL[i],sp=callSpot(c[0]);if(!sp)return;if(c[0]==='me'&&where)return pop('Сначала выйди на улицу');mpPub({t:'call',k:c[0],x:sp.x,z:sp.z,m:c[1]+' '+c[2]});mpSys('📣 Я: '+c[2]);mpBubble(null,c[2]);beacon(sp.x,sp.z,0xffd23f,20);closeOv();pop('📣 Отправлено: '+c[2])}
+function callIn(m){const n=gmNm(m.id),t=String(m.m||'').slice(0,40);mpSys('📣 '+n+': '+t);mpBubble(m.id,t);banner('📣 '+mpEsc(n)+': '+mpEsc(t),'место отмечено световым столбом');const x=+m.x,z=+m.z;if(isFinite(x)&&isFinite(z)){const b=beacon(x,z,0x4fc3ff,60);b.userData.call=1;MPCALL.x=x;MPCALL.z=z;MPCALL.until=Date.now()+60000}}
+const MPCALL={x:0,z:0,until:0};
+// ---------- mini-games ----------
+const GDEF={
+ tag:{n:'🏃 Догонялки',d:'Один игрок — «вода». Он догоняет остальных: кого коснулся — тот теперь вода. Проигрывает тот, кто дольше всех был водой.',dur:90,R:34},
+ hide:{n:'🙈 Прятки',d:'Водящий считает до 25 с закрытыми глазами, остальные прячутся в парке и вокруг. Потом водящий ищет: подбеги к игроку — и он найден!',dur:100,R:70,hide:25},
+ race:{n:'🏁 Кто быстрее',d:'Забег по городу через 3 светящиеся точки и обратно к парку. Кто первым прибежит на финиш — победил!',dur:150},
+ coins:{n:'🪙 Охота за монетами',d:'В парке рассыпаны 30 золотых монет. Собери больше всех за 60 секунд! Победитель получает приз.',dur:60,R:30},
+ light:{n:'🚦 Тише едешь — дальше будешь',d:'Беги к финишу на зелёный свет. На красный — ЗАМРИ! Кто пошевелится — вернётся на старт.',dur:120}};
+const ROUTES=[[[0,60],[0,0],[-60,0]],[[-60,120],[-120,120],[-120,60]],[[0,120],[60,120],[60,60]],[[-60,60],[-120,60],[-120,0],[-60,0]]];
+let GM={on:false},GVOTE=null;
+function gmMenu(){st='menu';const host=gmAmHost(),n=Object.keys(MP.mem).length;
+ ov(`<h2>🎮 Мини-игры</h2>${host?`<p style="font-size:13px">Выбери игру — все в комнате проголосуют. Больше 50% «за» — играем. Ровно 50% — бросим монетку. Меньше — игры не будет.</p>`:`<p>Мини-игры запускает создатель комнаты — <b>${mpEsc(gmNm(gmHostId()))}</b>. Попроси его в чате!</p>`}
+ ${Object.entries(GDEF).map(([k,g])=>`<div class="r2" style="display:block;padding:7px 0"><b>${g.n}</b><div style="font-size:12.5px;opacity:.85;margin:2px 0 4px">${g.d}</div>${host?`<button class="big" style="margin:2px 0;min-height:40px" ${n<1||GM.on||GVOTE?'disabled':''} onclick="gmPropose('${k}')">🗳 Предложить</button>`:''}</div>`).join('')}
+ ${host&&n<1?'<p><i>Для игры нужен хотя бы ещё один человек в комнате.</i></p>':''}${GM.on?'<p><b>Сейчас уже идёт игра.</b></p>':''}<button class="big alt" onclick="closeOv()">Закрыть</button>`,'mid')}
+function gmPropose(k){if(!gmAmHost()||GM.on||GVOTE)return;const vid=Math.random().toString(36).slice(2,8);gmSend({t:'gv',vid,g:k});closeOv();pop('🗳 Голосование началось')}
+// voting panel (everyone)
+function gvShow(m){GVOTE={vid:m.vid,g:m.g,host:m.id,t0:Date.now(),ballots:{},tot:1+Object.keys(MP.mem).length,voted:false};const G=GDEF[m.g];
+ if(!gmFree()){GVP.innerHTML=`<b>🗳 ${G.n}</b><div style="font-size:13px;margin-top:4px">Ты сейчас занят — голос «нет».</div>`;GVP.style.display='block';gvVote(0,1);setTimeout(()=>{if(GVOTE&&GVOTE.vid===m.vid)GVP.style.display='none'},2500);return}
+ tone(880,0,.12,.04);tone(1175,.15,.15,.04);
+ const draw=()=>{if(!GVOTE||GVOTE.vid!==m.vid)return;const left=Math.max(0,12-Math.floor((Date.now()-GVOTE.t0)/1000));GVP.innerHTML=`<div style="font-size:12px;opacity:.75">🗳 ${mpEsc(gmNm(m.id))} предлагает мини-игру · ${left} с</div><b style="font-size:17px">${G.n}</b><div style="font-size:12.5px;opacity:.9;margin:3px 0 8px">${G.d}</div>
+  ${GVOTE.voted?`<div style="font-weight:800">✅ Голос принят: ${GVOTE.my?'ДА':'НЕТ'}. Ждём остальных…</div>`:`<div style="display:flex;gap:8px"><button onclick="gvVote(1)" style="flex:1;min-height:46px;border-radius:14px;border:0;background:#2fbf71;color:#fff;font:900 17px 'Trebuchet MS'">👍 Да, играю!</button><button onclick="gvVote(0)" style="flex:1;min-height:46px;border-radius:14px;border:0;background:#e5484d;color:#fff;font:900 17px 'Trebuchet MS'">👎 Нет</button></div>`}`;
+  if(left>0)setTimeout(draw,500);else if(!GVOTE.voted)gvVote(0)};GVP.style.display='block';draw()}
+function gvVote(y,silent){if(!GVOTE||GVOTE.voted)return;GVOTE.voted=true;GVOTE.my=!!y;gmSend({t:'gb',vid:GVOTE.vid,y:y?1:0});if(!silent)tone(y?1046:330,0,.08,.04)}
+// host: collect ballots & decide
+setInterval(()=>{try{if(!GVOTE||GVOTE.host!==MP.id||GVOTE.done)return;const n=Object.keys(GVOTE.ballots).length;if(n>=GVOTE.tot||Date.now()-GVOTE.t0>13500)gvDecide()}catch(e){}},300);
+function gvDecide(){const V=GVOTE;V.done=1;const ids=[MP.id,...Object.keys(MP.mem)],tot=Math.max(V.tot,1),yesIds=ids.filter(id=>V.ballots[id]===1),pct=yesIds.length/tot;let ok=pct>.5,coin=false;if(Math.abs(pct-.5)<1e-9){coin=true;ok=Math.random()<.5}
+ let why='';if(ok&&yesIds.length<2){ok=false;why='нужно хотя бы 2 игрока'}const parts=shf(yesIds.slice());const cfg={};
+ if(V.g==='tag')cfg.it=parts[0];if(V.g==='hide')cfg.seek=parts[0];if(V.g==='race')cfg.route=Math.floor(Math.random()*ROUTES.length);if(V.g==='coins')cfg.seed=Math.floor(Math.random()*1e6);
+ gmSend({t:'gs',vid:V.vid,g:V.g,ok:ok?1:0,coin:coin?1:0,yes:yesIds.length,tot,parts,cfg,why})}
+// ---------- game runtime ----------
+const GVIS={wall:null,it:null,coins:[],lines:[]};
+function gmVisClear(){if(GVIS.wall){sc.remove(GVIS.wall);GVIS.wall=null}if(GVIS.it){sc.remove(GVIS.it);GVIS.it=null}for(const c of GVIS.coins)sc.remove(c);GVIS.coins=[];for(const l of GVIS.lines)sc.remove(l);GVIS.lines=[];if(GM.cpB){sc.remove(GM.cpB);const i=BEAC.indexOf(GM.cpB);if(i>=0)BEAC.splice(i,1);GM.cpB=null}}
+function gmWall(R,col){const m=new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.16,depthWrite:false,side:THREE.DoubleSide,fog:false});const w=new THREE.Mesh(new THREE.CylinderGeometry(R,R,3,72,1,true),m);w.position.set(ARC.x,1.5,ARC.z);sc.add(w);GVIS.wall=w}
+function gmSpot(i,n){const G=GM.k;if(G==='light'){const x=-50+40*(n>1?i/(n-1):.5);return[x,111.5,Math.PI]}if(G==='race'){const x=-38+16*(n>1?i/(n-1):.5);return[x,70,Math.PI]}const a=i/n*Math.PI*2,r=G==='hide'?9:14;return[ARC.x+Math.cos(a)*r,ARC.z+Math.sin(a)*r,Math.atan2(Math.cos(a),Math.sin(a))]}
+function gmStart(m){const k=m.g,G=GDEF[k];GM={on:true,k,host:m.id,parts:m.parts.slice(),cfg:m.cfg||{},t0:Date.now(),me:m.parts.includes(MP.id),score:{},itT:{},found:{},fin:[],taken:{},cp:0,light:'g',last:0};
+ gmVisClear();if(k==='tag'||k==='coins'||k==='hide')gmWall(G.R,k==='tag'?0xff5050:k==='coins'?0xffd23f:0x7a5cff);
+ if(k==='tag'){GM.it=GM.cfg.it;GM.itSince=0;GM.tagEl=-9;GVIS.it=txtSprite('🔴 ВОДА','#d63a3a')}
+ if(k==='coins'){let s0=GM.cfg.seed||1;const rn=()=>{s0=(s0*9301+49297)%233280;return s0/233280};const geo=new THREE.CylinderGeometry(.42,.42,.09,20),mt=new THREE.MeshPhongMaterial({color:0xffc63a,emissive:0x5a3a00,shininess:120,specular:0xffffff});
+  for(let i=0;i<30;i++){let x,z;do{const a=rn()*Math.PI*2,r=7+rn()*(G.R-9);x=ARC.x+Math.cos(a)*r;z=ARC.z+Math.sin(a)*r}while(GVIS.coins.some(c=>Math.hypot(c.position.x-x,c.position.z-z)<2.5));const c=new THREE.Mesh(geo,mt);c.rotation.x=Math.PI/2;c.position.set(x,.9,z);c.userData={i,ph:rn()*7};sc.add(c);GVIS.coins.push(c)}}
+ if(k==='light'){for(const [z,col] of[[112.5,0x2fbf71],[68.5,0xffffff]]){const p=new THREE.Mesh(new THREE.PlaneGeometry(46,1.2),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.85}));p.rotation.x=-Math.PI/2;p.position.set(-30,.13,z);sc.add(p);GVIS.lines.push(p)}
+  const fl=document.createElement('canvas');fl.width=64;fl.height=8;const fg=fl.getContext('2d');for(let x=0;x<64;x++)for(let y=0;y<8;y++){fg.fillStyle=(Math.floor(x/4)+Math.floor(y/4))%2?'#111':'#fff';fg.fillRect(x,y,1,1)}const tx2=new THREE.CanvasTexture(fl);tx2.magFilter=THREE.NearestFilter;GVIS.lines[1].material.map=tx2;GVIS.lines[1].material.needsUpdate=true}
+ if(GM.me){phEnd&&phEnd();if($('ov').style.display==='flex')closeOv();if(where){try{exitIn()}catch(e){}}st='play';const i=GM.parts.indexOf(MP.id),[x,z,ry]=gmSpot(i,GM.parts.length);pl.g.position.set(x,0,z);pl.g.rotation.y=facing=ry;yaw=ry+Math.PI;pitch=.55;zoom=11;snap=1;GSPD=k==='tag'&&GM.it===MP.id?7.6:7.2;GM.hold=pl.g.position.clone();try{EVX.t=Math.max(EVX.t,400)}catch(e){}}
+ if(k==='light'&&GM.host===MP.id)GM.nextL=Date.now()+3000+2500+Math.random()*2000;
+ if(k==='race'){GM.route=ROUTES[GM.cfg.route||0].concat([[-30,64]]);if(GM.me)GM.cpB=beacon(GM.route[0][0],GM.route[0][1],0x5ee07a,999)}
+ mpSys('🎮 Игра «'+GDEF[k].n+'» началась! Игроки: '+GM.parts.map(gmNm).join(', '));GHUD.style.display='block';sfxWhoosh&&sfxWhoosh(.7)}
+function gmEl(){return(Date.now()-GM.t0)/1000-3}// game time (after 3 s countdown)
+function gmRole(){const k=GM.k,me=MP.id;if(!GM.me)return'👀 Ты смотришь';
+ if(k==='tag')return GM.it===me?'🔴 Ты ВОДА — догони кого-нибудь!':'🏃 Убегай от '+mpEsc(gmNm(GM.it))+'!';
+ if(k==='hide'){if(GM.cfg.seek===me)return gmEl()<GDEF.hide.hide?'🙈 Считаешь… не подглядывай!':'🔎 Ищи! Найдено '+Object.keys(GM.found).length+'/'+(GM.parts.length-1);return GM.found[me]?'😅 Тебя нашли — смотри игру':gmEl()<GDEF.hide.hide?'🏃 Прячься! Тебя ищет '+mpEsc(gmNm(GM.cfg.seek)):'🤫 Сиди тихо…'}
+ if(k==='race')return GM.done?'🏁 Ты финишировал!':'🏁 Точка '+(GM.cp+1)+' из '+GM.route.length+(GM.cp===GM.route.length-1?' — ФИНИШ у парка!':'');
+ if(k==='coins')return'🪙 Твои монеты: '+(GM.score[me]||0);
+ if(k==='light')return GM.done?'🏁 Ты на финише!':(GM.light==='g'?'🟢 Беги!':'🔴 ЗАМРИ!');return''}
+function gmTick(dt){beacTick(dt);if(!GM.on)return;const k=GM.k,G=GDEF[k],el=gmEl(),me=MP.id,p=pl.g.position;
+ // host vanished?
+ if(GM.host!==me&&!MP.mem[GM.host]&&el>1){gmFinish({rows:[],title:'Игра прервана: создатель вышел из комнаты'});return}
+ // countdown
+ if(el<0){const n=Math.ceil(-el);if(n!==GM.cd){GM.cd=n;gmBig(n,G.n);tone(660,0,.12,.05)}}else if(!GM.go){GM.go=1;gmBig('СТАРТ!',k==='hide'?'Прячьтесь!':'',k==='light'?'#5ee07a':'#ffd23f');tone(1320,0,.3,.06)}
+ const frozen=GM.me&&(el<0||(k==='hide'&&GM.cfg.seek===me&&el<G.hide));if(frozen&&GM.hold){p.x=GM.hold.x;p.z=GM.hold.z}else if(GM.me)GM.hold=p.clone();
+ // keep inside arena
+ if(GM.me&&G.R){const dx=p.x-ARC.x,dz=p.z-ARC.z,d=Math.hypot(dx,dz);if(d>G.R-.6){p.x=ARC.x+dx/d*(G.R-.6);p.z=ARC.z+dz/d*(G.R-.6)}}
+ if(GM.me&&k==='light'){p.x=Math.max(-54,Math.min(-6,p.x));p.z=Math.max(66,Math.min(113,p.z))}
+ // blind seeker
+ const blind=k==='hide'&&GM.me&&GM.cfg.seek===me&&el>=0&&el<G.hide;GBIG.style.background=blind?'rgba(0,0,0,.94)':'';if(blind){GBIG.innerHTML=`<div style="font:900 clamp(26px,6vw,48px) 'Trebuchet MS'">🙈 Считаю…</div><div style="font:900 clamp(60px,14vw,120px) 'Trebuchet MS';color:#ffd23f">${Math.ceil(G.hide-el)}</div>`;GBIG.style.display='flex'}else if(GM.wasBlind){GBIG.style.display='none';gmBig('🔎','Ищи!');}GM.wasBlind=blind;
+ // per game
+ if(k==='tag'){const pos=gmPosOf(GM.it);if(GVIS.it&&pos){GVIS.it.position.set(pos.x,(pos.y||0)+3.1,pos.z);const d=cam.position.distanceTo(GVIS.it.position),s2=Math.max(1,d/14);GVIS.it.scale.set(3*s2,.75*s2,1)}
+  GSPD=GM.me?(GM.it===me?7.6:7.2):0;
+  if(GM.me&&GM.it===me&&el>0&&el-GM.tagEl>2&&Date.now()-GM.last>600)for(const id of GM.parts){if(id===me||(id===GM.prev&&el-GM.tagEl<3.5))continue;const q=gmPosOf(id);if(q&&Math.hypot(q.x-p.x,q.z-p.z)<1.9){GM.last=Date.now();gmSend({t:'gtag',to:id});break}}}
+ if(k==='hide'&&GM.me&&GM.cfg.seek===me){for(const id of GM.parts){if(id===me||GM.found[id])continue;const A=MPAV[id];if(A){A.tag.visible=false;if(A.bub)A.bub.visible=false}if(el>=G.hide&&Date.now()-GM.last>500){const q=gmPosOf(id);if(q&&Math.hypot(q.x-p.x,q.z-p.z)<2.4){GM.last=Date.now();gmSend({t:'gfound',to:id})}}}}
+ if(k==='race'&&GM.me&&!GM.done&&el>0){const c=GM.route[GM.cp];if(Math.hypot(p.x-c[0],p.z-c[1])<5){GM.cp++;tone(1046,0,.1,.05);tone(1568,.1,.15,.05);if(GM.cpB){sc.remove(GM.cpB);BEAC.splice(BEAC.indexOf(GM.cpB),1);GM.cpB=null}if(GM.cp>=GM.route.length){GM.done=1;gmSend({t:'gfin',tm:+el.toFixed(1)})}else{const n2=GM.route[GM.cp];GM.cpB=beacon(n2[0],n2[1],GM.cp===GM.route.length-1?0xffd23f:0x5ee07a,999);pop('✅ Точка '+GM.cp+'! Дальше — '+(GM.cp===GM.route.length-1?'финиш у парка':'следующий столб'))}}}
+ if(k==='coins'){for(const c of GVIS.coins){if(!c.visible)continue;c.rotation.z+=dt*3;c.position.y=.9+Math.sin(tm*3+c.userData.ph)*.15;if(GM.me&&el>0&&!GM.taken[c.userData.i]&&Math.hypot(c.position.x-p.x,c.position.z-p.z)<1.5){c.visible=false;GM.taken[c.userData.i]='?';tone(1568,0,.06,.04);tone(2093,.06,.08,.04);gmSend({t:'gcoin',i:c.userData.i})}}}
+ if(k==='light'&&GM.me&&!GM.done&&el>0){if(GM.light==='r'&&Date.now()-GM.redAt>450){if(!GM.redPos)GM.redPos=p.clone();else if(Math.hypot(p.x-GM.redPos.x,p.z-GM.redPos.z)>.35){const i=GM.parts.indexOf(me),[x,z]=gmSpot(i,GM.parts.length);p.set(x,0,z);GM.hold=p.clone();GM.redPos=p.clone();snap=1;tone(200,0,.5,.07);gmBig('😱','Ты пошевелился! На старт','#ff5050');try{navigator.vibrate&&navigator.vibrate(200)}catch(e){}}}
+  if(p.z<=69){GM.done=1;gmSend({t:'gfin',tm:+el.toFixed(1)});tone(1046,0,.1,.05);tone(1568,.1,.2,.05)}}
+ if(k==='light'){GSIG.style.display=GM.me?'block':'none';GSIG.style.background=GM.light==='g'?'radial-gradient(circle,#7dffb0,#1f9e55)':'radial-gradient(circle,#ff8a8a,#c62828)'}
+ // HUD
+ const left=Math.max(0,Math.ceil(G.dur-Math.max(0,el)+(k==='hide'?G.hide:0)));GHUD.innerHTML=`${G.n} · ⏱ ${Math.floor(left/60)}:${String(left%60).padStart(2,'0')}<div style="font-size:13px;color:#ffd23f">${gmRole()}</div>`;
+ // host duties
+ if(GM.host===me)gmHostTick(el)}
+function gmHostTick(el){const k=GM.k,G=GDEF[k],live=GM.parts.filter(id=>id===MP.id||MP.mem[id]);if(live.length<2&&el>0)return gmEndHost('Слишком мало игроков осталось');
+ if(k==='light'&&el>0&&Date.now()>(GM.nextL||0)){const nx=GM.light==='g'?'r':'g';GM.nextL=Date.now()+(nx==='g'?2200+Math.random()*2600:1800+Math.random()*1500);gmSend({t:'glight',c:nx})}
+ const total=G.dur+(k==='hide'?G.hide:0);
+ if(k==='hide'&&el>G.hide&&GM.parts.filter(id=>id!==GM.cfg.seek&&!GM.found[id]).length===0)return gmEndHost();
+ if((k==='race'||k==='light')&&GM.fin.length>=live.length)return gmEndHost();
+ if(k==='coins'&&Object.values(GM.taken).filter(v=>v!=='?').length>=30)return gmEndHost();
+ if((k==='tag'&&!live.includes(GM.it))||(k==='hide'&&!live.includes(GM.cfg.seek)))return gmEndHost('Водящий вышел из комнаты');
+ if(el>=total)gmEndHost()}
+function gmEndHost(why){if(GM.ending)return;GM.ending=1;const k=GM.k,el=gmEl(),N=gmNm;let rows=[],win=[],title='';
+ if(why){title=why}
+ else if(k==='tag'){GM.itT[GM.it]=(GM.itT[GM.it]||0)+Math.max(0,el-GM.itSince);rows=GM.parts.map(id=>[id,Math.round(GM.itT[id]||0)]).sort((a,b)=>a[1]-b[1]);win=rows.filter(r=>r[1]===rows[0][1]).map(r=>r[0]);title='Меньше всех был водой: '+win.map(N).join(', ');rows=rows.map(r=>[r[0],r[1]+' с водой'])}
+ else if(k==='hide'){const left=GM.parts.filter(id=>id!==GM.cfg.seek&&!GM.found[id]);if(left.length){win=left;title='Не нашли: '+left.map(N).join(', ')+' — победа!'}else{win=[GM.cfg.seek];title=N(GM.cfg.seek)+' нашёл всех!'}rows=GM.parts.map(id=>[id,id===GM.cfg.seek?'🔎 водящий':GM.found[id]?'найден(а)':'🤫 не нашли'])}
+ else if(k==='race'||k==='light'){rows=GM.fin.map((f,i)=>[f[0],['🥇','🥈','🥉'][i]||(i+1)+'.',f[1]+' с']).map(r=>[r[0],r[1]+' '+r[2]]);for(const id of GM.parts)if(!GM.fin.some(f=>f[0]===id))rows.push([id,'не добежал(а)']);win=GM.fin.length?[GM.fin[0][0]]:[];title=win.length?'Победитель: '+N(win[0]):'Никто не добежал'}
+ else if(k==='coins'){rows=GM.parts.map(id=>[id,GM.score[id]||0]).sort((a,b)=>b[1]-a[1]);win=rows[0]&&rows[0][1]>0?rows.filter(r=>r[1]===rows[0][1]).map(r=>r[0]):[];title=win.length?'Больше всех собрал(а): '+win.map(N).join(', '):'Никто не собрал монет';rows=rows.map(r=>[r[0],r[1]+' 🪙'])}
+ gmSend({t:'gend',rows,win,title})}
+function gmFinish(m){if(!GM.on)return;const won=(m.win||[]).includes(MP.id)&&GM.me,G=GDEF[GM.k];GM.on=false;GSPD=0;gmVisClear();GHUD.style.display='none';GSIG.style.display='none';GBIG.style.display='none';GBIG.style.background='';
+ if(won){S.bank+=20;save();hud()}mpSys('🏁 '+G.n+': '+(m.title||'игра окончена'));
+ const rows=(m.rows||[]).map(r=>`<div class="r2"><span>${mpEsc(gmNm(r[0]))}${r[0]===MP.id?' (ты)':''}</span><span>${mpEsc(r[1])}</span></div>`).join('');
+ if(st==='play'||st==='menu'){st='menu';ov(`<h2>🏁 ${G.n}: итоги</h2><p style="font-size:16px"><b>${mpEsc(m.title||'')}</b></p>${rows}${won?'<p>🎉 <b>Ты победил! Приз +20 🪙</b></p>':''}<button class="big" onclick="closeOv()">Продолжить</button>${gmAmHost()?`<button class="big alt" onclick="gmMenu()">🎮 Ещё игра</button>`:''}`,'mid')}
+ if(won){try{fanfare();confetti(120)}catch(e){}}}
+// ---------- messages ----------
+function gmMsg(m){const t=m.t;if(!t||(t[0]!=='g'&&t!=='call'))return false;const fromHost=m.id===gmHostId()||m.id===(GM.on&&GM.host);
+ if(t==='call'){callIn(m);return true}
+ if(t==='gv'){if(m.id===gmHostId()&&!GM.on&&!GVOTE)gvShow(m);return true}
+ if(t==='gb'){if(GVOTE&&GVOTE.host===MP.id&&m.vid===GVOTE.vid&&!(m.id in GVOTE.ballots))GVOTE.ballots[m.id]=m.y?1:0;return true}
+ if(t==='gs'){if(GVOTE&&GVOTE.vid===m.vid){GVP.style.display='none';GVOTE=null}else GVP.style.display='none';const G=GDEF[m.g],pct=Math.round(m.yes/m.tot*100);
+  const res=m.coin?`Ровно 50% «за» — бросили монетку: ${m.ok?'🪙 орёл — играем!':'🪙 решка — не играем'}`:m.ok?`${m.yes} из ${m.tot} «за» (${pct}%) — играем!`:m.why?`Игры не будет: ${m.why}`:`${m.yes} из ${m.tot} «за» (${pct}%) — меньше половины, игры не будет`;
+  mpSys('🗳 '+G.n+': '+res);banner('🗳 '+G.n,res);if(m.ok)setTimeout(()=>gmStart(m),900);return true}
+ if(!GM.on)return true;
+ if(t==='gtag'&&GM.host===MP.id&&GM.k==='tag'){const el=gmEl();if(m.id===GM.it&&GM.parts.includes(m.to)&&m.to!==m.id&&el-GM.tagEl>1.8){GM.itT[m.id]=(GM.itT[m.id]||0)+Math.max(0,el-GM.itSince);gmSend({t:'git',it:m.to,prev:m.id,el})}return true}
+ if(t==='git'&&GM.k==='tag'&&m.id===GM.host){GM.prev=m.prev;GM.it=m.it;GM.tagEl=gmEl();if(GM.host===MP.id)GM.itSince=gmEl();if(m.it===MP.id){gmBig('🔴','Тебя осалили! Теперь ты вода','#ff5050');tone(330,0,.25,.06);try{navigator.vibrate&&navigator.vibrate(150)}catch(e){}}else pop('🔴 Теперь вода — '+gmNm(m.it))}
+ if(t==='gfound'&&GM.host===MP.id&&GM.k==='hide'){if(m.id===GM.cfg.seek&&!GM.found[m.to]&&GM.parts.includes(m.to))gmSend({t:'gfnd',to:m.to})}
+ if(t==='gfnd'&&m.id===GM.host){GM.found[m.to]=1;if(m.to===MP.id){gmBig('😅','Тебя нашли!','#ffd23f');tone(330,0,.3,.05)}else pop('🔎 '+gmNm(GM.cfg.seek)+' нашёл '+gmNm(m.to)+'!')}
+ if(t==='gfin'&&GM.host===MP.id&&!GM.fin.some(f=>f[0]===m.id)){GM.fin.push([m.id,m.tm]);gmSend({t:'gfo',who:m.id,place:GM.fin.length,tm:m.tm})}
+ if(t==='gfo'&&m.id===GM.host){pop((['🥇','🥈','🥉'][m.place-1]||m.place+'.')+' '+gmNm(m.who)+' на финише! ('+m.tm+' с)')}
+ if(t==='gcoin'&&GM.host===MP.id){if(!GM.taken[m.i]||GM.taken[m.i]==='?'){if(GM.taken[m.i]==='?'&&m.id!==MP.id){}GM.taken[m.i]=m.id;GM.score[m.id]=(GM.score[m.id]||0)+1;gmSend({t:'gcok',i:m.i,by:m.id,s:GM.score[m.id]})}}
+ if(t==='gcok'&&m.id===GM.host){if(GM.host!==MP.id){GM.taken[m.i]=m.by;GM.score[m.by]=m.s}const c=GVIS.coins.find(c=>c.userData.i===m.i);if(c)c.visible=false}
+ if(t==='glight'&&m.id===GM.host){GM.light=m.c;if(m.c==='r'){GM.redAt=Date.now();GM.redPos=null;if(GM.me&&!GM.done){gmBig('ЗАМРИ!','','#ff5050');tone(220,0,.35,.06)}}else if(GM.me&&!GM.done){gmBig('БЕГИ!','Тише едешь — дальше будешь','#5ee07a');tone(880,0,.15,.05)}}
+ if(t==='gend'&&m.id===GM.host)gmFinish(m);
+ return true}
+{const _mm=mpMsg;mpMsg=function(tp,m){if(gmMsg(m))return;_mm(tp,m)}}
+{const _t=mpTick;mpTick=function(dt){_t(dt);try{gmTick(dt)}catch(e){console.error(e)}}}
+// participants: no buildings, no cars, no traffic hits, no calls/thugs during a game
+function gmLock(){return GM.on&&GM.me}
+{const _i=inter;inter=function(z){if(gmLock()){pop('🎮 Сейчас идёт мини-игра!');return}return _i(z)}}
+{const _h=hitCheck;hitCheck=function(){if(gmLock())return;return _h()}}
+{const _s=scamTick;scamTick=function(dt){if(gmLock())return;return _s(dt)}}
+// family menu: games button + leaving cleanup
+{const _ml=mpLeave;mpLeave=function(){if(GM.on){GM.on=false;GSPD=0;gmVisClear();GHUD.style.display='none';GSIG.style.display='none';GBIG.style.display='none'}GVP.style.display='none';GVOTE=null;_ml()}}
+{const _md=mpDrop;mpDrop=function(){if(GM.on){GM.on=false;GSPD=0;gmVisClear();GHUD.style.display='none';GSIG.style.display='none';GBIG.style.display='none'}GVP.style.display='none';GVOTE=null;_md()}}
+
+function gmHid(id){return GM.on&&GM.k==='hide'&&GM.me&&GM.cfg.seek===MP.id&&id!==MP.id&&!GM.found[id]}
+// minimap: call target & race checkpoint
+{const _dm=drawMM;drawMM=function(dt){_dm(dt);if(where||MM.style.display==='none')return;const tg=[];if(MPCALL.until>Date.now())tg.push([MPCALL.x,MPCALL.z,'#4fc3ff','📣']);if(GM.on&&GM.k==='race'&&GM.me&&!GM.done){const c=GM.route[GM.cp];tg.push([c[0],c[1],'#5ee07a','🏁'])}if(!tg.length)return;
+ const v=mmView(),g=MMC,W=MM.width,C=W/2,k=C/75,cs=Math.cos(v.th),sn=Math.sin(v.th);for(const [x,z,col,ic] of tg){const dx=(x-v.px)*k,dz=(z-v.pz)*k;let q=[C+dx*cs-dz*sn,C+dx*sn+dz*cs];const ex=q[0]-C,ey=q[1]-C,dd=Math.hypot(ex,ey);if(dd>C-16)q=[C+ex/dd*(C-16),C+ey/dd*(C-16)];
+  g.fillStyle=col;g.strokeStyle='#fff';g.lineWidth=3;g.beginPath();g.arc(q[0],q[1],13+Math.sin(tm*6)*2,0,7);g.fill();g.stroke();g.font='15px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(ic,q[0],q[1]+1)}}}
+
 // ===== MINIMAP + CITY MAP =====
 const MMS=2,MMI=document.createElement('canvas');MMI.width=MMI.height=MAPR*2*MMS;
 {const g=MMI.getContext('2d'),W=MMI.width,T=v=>(v+MAPR)*MMS;g.fillStyle='#86c46a';g.fillRect(0,0,W,W);
@@ -4153,7 +4342,7 @@ if(INTRO){introLoop(dt);return}if(PRES){presLoop(dt);return}if(TL){tlLoop(dt);re
 const p=pl.g.position;let mv=false,spr=false;
 if((st==='play'||st==='fjob'||st==='mis')&&S.age>=5){let vx=jx+(KD.right?1:0)-(KD.left?1:0),vz=jz+(KD.back?1:0)-(KD.fwd?1:0);const l=Math.hypot(vx,vz);
 if(l>.15){mv=true;const run=(sprH||KD.run)&&stam>0;if(run)stam=Math.max(0,stam-11*dt);spr=run;
-const k=Math.min(1,l)*(5+S.age*.1)*(run?1.45:1)*dt/l,cs=Math.cos(yaw),sn=Math.sin(yaw),wx=vx*cs+vz*sn,wz=-vx*sn+vz*cs;p.x+=wx*k;p.z+=wz*k;facing=Math.atan2(-wx,-wz)}}
+const k=Math.min(1,l)*(GSPD||(5+S.age*.1))*(run?1.45:1)*dt/l,cs=Math.cos(yaw),sn=Math.sin(yaw),wx=vx*cs+vz*sn,wz=-vx*sn+vz*cs;p.x+=wx*k;p.z+=wz*k;facing=Math.atan2(-wx,-wz)}}
 if(!(sprH||KD.run))stam=Math.min(100,stam+14*dt);if(!mv)spr=false;
 sb.firstChild.style.width=stam+'%';sb.className=stam<=0?'empty':'';sp.className=spr?'on':'';
 for(const c of(where?ICOL[where]:COL)){const dx=p.x-c[0],dz=p.z-c[1],ox=c[2]+.45-Math.abs(dx),oz=c[3]+.45-Math.abs(dz);if(ox>0&&oz>0){if(ox<oz)p.x+=(dx<0?-1:1)*ox;else p.z+=(dz<0?-1:1)*oz}}
