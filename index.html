@@ -3639,27 +3639,28 @@ function MQ(url,opt){const me={ok:false,on:{}},enc=new TextEncoder(),dec=new Tex
 // --- rooms ---
 const MPBROKERS=['wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/mqtt','wss://test.mosquitto.org:8081/mqtt'];
 const MPCOL=[0xe84a5f,0x2a9df4,0x26c281,0xf5a623,0x9b59b6,0x1abc9c,0xe67e22,0xff6fb5];
-const MP={c:null,room:null,id:'f'+Math.random().toString(36).slice(2,10),mem:{},chat:[],tx:{},seen:{},last:'',sentAt:0,infoT:0,st:'off'};
+const MP={c:null,room:null,id:(()=>{let v=null;try{v=localStorage.getItem('mpid')}catch(e){}if(!v){v='f'+Math.random().toString(36).slice(2,10);try{localStorage.setItem('mpid',v)}catch(e){}}return v})(),mem:{},chat:[],tx:{},seen:{},last:'',sentAt:0,infoT:0,st:'off'};
 function mpHash(s){let h1=0xdeadbeef,h2=0x41c6ce57;for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);h1=Math.imul(h1^c,2654435761);h2=Math.imul(h2^c,1597334677)}h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);return(h2>>>0).toString(36)+(h1>>>0).toString(36)}
 function mpBrokers(){let o=null;try{o=localStorage.getItem('mpbroker')}catch(e){}return o?o.split(','):MPBROKERS}
 function mpTopic(name,code){return'fngrd1/'+mpHash(name.trim().toLowerCase()+'|'+code.trim())}
 // --- connection hub: talks to ALL brokers at once, so every player meets the others on at least one of them ---
-const MPH={conns:[],seq:0,dedup:new Map(),allUntil:0};
+const MPH={conns:[],seq:Date.now(),dedup:new Map(),allUntil:0,rxT:{}};
 function mpOpen(url,room){const C={url,c:null,ok:false,dead:false,tries:0};
  const go=()=>{if(C.dead)return;const c=MQ(url,{id:MP.id+'_'+Math.random().toString(36).slice(2,6)});C.c=c;
   c.on.conn=()=>{C.ok=true;C.tries=0;c.sub(room.t+'/s');c.sub(room.t+'/info');if(MP.room&&MP.st==='on'){mpSend(1)}else mpPub({t:'hi'})};
-  c.on.msg=(tp,m,ret)=>mpIn(tp,m,ret);c.on.err=()=>{};c.on.close=()=>{C.ok=false;if(!C.dead){C.tries++;setTimeout(go,Math.min(6000,1000*C.tries))}}};
+  c.on.msg=(tp,m,ret)=>mpIn(tp,m,ret,C);c.on.err=()=>{};c.on.close=()=>{C.ok=false;if(!C.dead){C.tries++;setTimeout(go,Math.min(6000,1000*C.tries))}}};
  go();MPH.conns.push(C);return C}
 function mpOk(){return MPH.conns.some(C=>C.ok)}
 // one shared server: the first broker that EVERY player in the room can reach (like the first version); if none is shared — send via all
 function mpMask(){const L=mpBrokers();let m=0;L.forEach((u,i)=>{if(MPH.conns.some(C=>C.url===u&&C.ok))m|=1<<i});return m}
-function mpHome(){if(!MP.room)return-1;let m=mpMask();for(const id in MP.mem){const b=MP.mem[id].bm;if(typeof b==='number')m&=b}if(!m)return-1;let i=0;while(!(m&1)){m>>=1;i++}return i}
+function mpRxMask(){const L=mpBrokers(),now=Date.now();let m=0;L.forEach((u,i)=>{if((MPH.rxT[u]||0)>now-7000&&MPH.conns.some(C=>C.url===u&&C.ok))m|=1<<i});return m}
+function mpHome(){if(!MP.room)return-1;let m=mpMask();for(const id in MP.mem){const M=MP.mem[id];if(M.away)continue;const b=typeof M.rm==='number'&&M.rm?M.rm:M.bm;if(typeof b==='number')m&=b}if(!m)return-1;let i=0;while(!(m&1)){m>>=1;i++}return i}
 function mpRaw(topic,msg,retain,all){const L=mpBrokers(),h=all?-1:mpHome(),hu=h>=0?L[h]:null;for(const C of MPH.conns)if(C.ok&&(!hu||C.url===hu))try{C.c.pub(topic,msg,retain)}catch(e){}}
 function mpCloseAll(){for(const C of MPH.conns){C.dead=true;try{C.c&&C.c.end()}catch(e){}}MPH.conns=[]}
-function mpIn(tp,raw,ret){const R=MP.room||MP.pend;if(!R)return;
+function mpIn(tp,raw,ret,C){const R=MP.room||MP.pend;if(!R)return;
  if(tp===R.t+'/info'){if(raw){try{const i=JSON.parse(raw);if(Math.abs(Date.now()-i.ts)<2*3600e3)R.info=1}catch(e){}}return}
- let m;try{m=JSON.parse(raw)}catch(e){return}if(!m||m.id===MP.id)return;const key=m.id+':'+m.q;if(m.q!=null){if(MPH.dedup.has(key))return;MPH.dedup.set(key,1);if(MPH.dedup.size>800){const it=MPH.dedup.keys();for(let i=0;i<300;i++)MPH.dedup.delete(it.next().value)}}
- if(!MP.room){if(m.t==='st'||m.t==='hi')R.seen=1;return}if(typeof m.bm==='number'&&MP.mem[m.id])MP.mem[m.id].bm=m.bm;if(m.t==='hi'){MPH.allUntil=Date.now()+4000;mpSend(1);return}mpMsg(tp,m)}
+ let m;try{m=JSON.parse(raw)}catch(e){return}if(!m||m.id===MP.id)return;if(C)MPH.rxT[C.url]=Date.now();const key=m.id+':'+m.q;if(m.q!=null){if(MPH.dedup.has(key))return;MPH.dedup.set(key,1);if(MPH.dedup.size>800){const it=MPH.dedup.keys();for(let i=0;i<300;i++)MPH.dedup.delete(it.next().value)}}
+ if(!MP.room){if(m.t==='st'||m.t==='hi')R.seen=1;return}const MM0=MP.mem[m.id];if(MM0){if(typeof m.bm==='number')MM0.bm=m.bm;if(typeof m.rm==='number')MM0.rm=m.rm;if(m.t==='hb'&&!MM0.away)MM0.seen=Date.now()}if(m.t==='hb')return;if(m.t==='hi'){MPH.allUntil=Date.now()+4000;mpSend(1);return}mpMsg(tp,m)}
 function mpConnect(mode){if(MP.st==='wait')return;const nm0=(($('mpn')||{}).value||'').trim(),secret=/\$\$$/.test(nm0),nm=nm0.replace(/\$+$/,'').trim(),rn=($('mpr')||{}).value||'',cd=($('mpc')||{}).value||'',er=$('mpe');const say=t=>{if(er)er.textContent=t};
  if(nm.length<2)return say('Введи своё имя (хотя бы 2 буквы)');if(rn.trim().length<3)return say('Название комнаты — хотя бы 3 символа');if(cd.trim().length<4)return say('Код — хотя бы 4 символа');
  if(navigator.onLine===false)return say('📵 Нет интернета. Мультиплеер работает только онлайн.');
@@ -3679,7 +3680,7 @@ function mpStart(room,mode){MP.room=room;MP.isHost=mode==='make';MP.st='on';MP.m
 function mpInfo(){if(MP.room)mpRaw(MP.room.t+'/info',JSON.stringify({n:MP.room.n,ts:Date.now()}),true,1);MP.infoT=Date.now()}
 function mpDrop(){for(const id in MP.mem)mpAvDel(id);MP.mem={};mpCloseAll();MP.room=null;MP.st='off';mpBtn()}
 function mpLeave(){if(!MP.room)return;const alone=!Object.keys(MP.mem).length;mpPub({t:'bye'});if(alone)mpRaw(MP.room.t+'/info','',true);setTimeout(mpCloseAll,400);for(const id in MP.mem)mpAvDel(id);MP.mem={};MP.room=null;MP.st='off';mpBtn();pop('🚪 Ты вышел из комнаты');closeOv()}
-function mpPub(o){const R=MP.room||MP.pend;if(!R||!mpOk())return;o.id=MP.id;o.q=++MPH.seq;o.bm=mpMask();mpRaw(R.t+'/s',JSON.stringify(o),false,!MP.room||o.t==='hi'||o.t==='bye'||o.t==='away'||MPH.allUntil>Date.now())}
+function mpPub(o){const R=MP.room||MP.pend;if(!R||!mpOk())return;o.id=MP.id;o.q=++MPH.seq;o.bm=mpMask();o.rm=mpRxMask();mpRaw(R.t+'/s',JSON.stringify(o),false,!MP.room||o.t==='hi'||o.t==='bye'||o.t==='away'||MPH.allUntil>Date.now())}
 function mpAct(){if(st==='fly'||st==='fpause'||st==='fend')return'✈️ в полёте';if(CF||DOCK||SEQ)return'🚀 в космосе';if(st==='box')return'🥊 на ринге';if(CH)return'🌪 гонится за штормом';if(st==='build')return'🔧 собирает машину';if(st==='drive'||st==='dend'||st==='dpop')return'🚗 за рулём';if(st==='office'||st==='oend')return'💼 на работе';if(st==='pres')return'🎤 презентация';if(where)return'🏢 '+(BNAME[where]||'в здании');return'🚶 гуляет по городу'}
 function mpSend(force){if(!MP.room||!mpOk())return;const drv=D&&D.car,p=drv?D.car.position:pl.g.position,ry=drv?D.car.rotation.y:pl.g.rotation.y,vis=!HT&&!CH&&!CF&&!DOCK&&!SEQ&&!['fly','fpause','fend','pres','box','build','tlift','office','oend'].includes(st);
  const o={t:'st',h:MP.isHost?1:0,ts:Date.now(),n:MP.room.nick,c:MP.col,x:+p.x.toFixed(2),y:+p.y.toFixed(2),z:+p.z.toFixed(2),r:+ry.toFixed(2),v:vis?1:0,car:drv?1:0,w:where||'',a:S.age,b:S.bank,e:S.en,j:S.job?PN[S.job]||'':'',act:mpAct(),em:MPE.k&&tm-MPE.t0<MPE.dur?MPE.k:'',ea:MPE.k?+(tm-MPE.t0).toFixed(2):0};
@@ -3755,7 +3756,7 @@ function mpFamRender(){const F=$('mpfam');if(!F||!MP.room)return;const me={n:MP.
  ${m.self?'':`<div style="display:grid;grid-template-columns:92px minmax(0,1fr) 56px;gap:6px;margin-top:5px;align-items:center"><input id="mpg_${m.id}" ${MPIN} type="number" min="1" inputmode="numeric" placeholder="сумма"><input id="mpgm_${m.id}" ${MPIN} maxlength="40" placeholder="на что? (необяз.)"><button class="big" style="width:56px;margin:0;min-height:44px;padding:0" onclick="mpGive('${m.id}')">💸</button></div>`}</div>`}).join('')+(L.length<2?'<p><i>Пока ты один в комнате. Скажи друзьям название и код!</i></p>':'');
  for(const k in keep){const i=$(k);if(i)i.value=keep[k]}}
 setInterval(()=>{if(MP.room&&$('ov').style.display==='flex'&&$('mpfam')&&!(document.activeElement&&document.activeElement.tagName==='INPUT'))mpFamRender()},1500);
-addEventListener('beforeunload',()=>{if(MP.room){try{mpPub({t:'bye'})}catch(e){}}});
+for(const ev of['beforeunload','pagehide'])addEventListener(ev,()=>{if(MP.room){try{mpPub({t:'bye'})}catch(e){}}});
 {const st2=document.createElement('style');st2.textContent='#mpfam .big,#mpfam .big::after{animation:none!important;opacity:1!important}';(document.head||document.body).appendChild(st2)}
 
 // ---------- away when the phone is locked / app switched ----------
@@ -3774,6 +3775,10 @@ function emoteMenu(){st='menu';ov('<h2>🙌 Эмоции</h2><p style="font-size
 {const _dm=drawMM;drawMM=function(dt){_dm(dt);if(!MP.room||where||MM.style.display==='none')return;const v=mmView(),g=MMC,W=MM.width,C=W/2,k=C/75,cs=Math.cos(v.th),sn=Math.sin(v.th);
  for(const id in MPAV){const A=MPAV[id],m=MP.mem[id];if(!m||!m.v||m.w)continue;if(typeof gmHid==='function'&&gmHid(id))continue;const dx=(A.x-v.px)*k,dz=(A.z-v.pz)*k;let q=[C+dx*cs-dz*sn,C+dx*sn+dz*cs];const ex=q[0]-C,ey=q[1]-C,dd=Math.hypot(ex,ey);if(dd>C-14)q=[C+ex/dd*(C-14),C+ey/dd*(C-14)];
   g.fillStyle='#'+new THREE.Color(m.c||0xe84a5f).getHexString();g.strokeStyle='#fff';g.lineWidth=3;g.beginPath();g.arc(q[0],q[1],9+Math.sin(tm*5)*1.5,0,7);g.fill();g.stroke();g.fillStyle='#fff';g.font='bold 11px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText((m.n||'?')[0].toUpperCase(),q[0],q[1]+.5)}}}
+
+// heartbeat on EVERY server (tiny, every 2.5 s): shows which servers really deliver; flood-send while someone looks silent
+setInterval(()=>{try{if(!MP.room)return;const o={t:'hb',id:MP.id,q:++MPH.seq,bm:mpMask(),rm:mpRxMask()},js=JSON.stringify(o);for(const C of MPH.conns)if(C.ok)try{C.c.pub(MP.room.t+'/s',js)}catch(e){}
+ const now=Date.now();if(Object.values(MP.mem).some(M=>!M.away&&now-M.seen>3000))MPH.allUntil=now+3000}catch(e){}},2500);
 
 // ===== COMFORT PATCH (v23): goal hints, how-to-play & job guide, non-blocking calls, softer car hits, adaptive quality =====
 // ---------- jobs: where to get hired ----------
@@ -4259,7 +4264,7 @@ function gmHid(id){return GM.on&&GM.k==='hide'&&GM.me&&GM.cfg.seek===MP.id&&id!=
   g.fillStyle=col;g.strokeStyle='#fff';g.lineWidth=3;g.beginPath();g.arc(q[0],q[1],13+Math.sin(tm*6)*2,0,7);g.fill();g.stroke();g.font='15px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(ic,q[0],q[1]+1)}}}
 
 // ===== VERSION LABEL =====
-const GAMEVER='beta 1.0';
+const GAMEVER='beta 1.1';
 {const d=document.createElement('div');d.id='gver';d.textContent=GAMEVER;d.style.cssText='position:fixed;left:calc(env(safe-area-inset-left,0px) + 8px);bottom:calc(env(safe-area-inset-bottom,0px) + 3px);z-index:3;font:700 10px "Trebuchet MS",sans-serif;color:rgba(120,120,120,.85);text-shadow:0 1px 0 rgba(255,255,255,.5);pointer-events:none;letter-spacing:.5px';(document.body||document.documentElement).appendChild(d)}
 
 // ===== MINIMAP + CITY MAP =====
